@@ -1,0 +1,77 @@
+name: Bug report
+description: Report a reproducible defect in Svelix.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before submitting, search existing issues to avoid duplicates.
+        Please report problems with the smallest reproducible example possible.
+  - type: input
+    id: package-version
+    attributes:
+      label: Svelix version
+      description: Include the package version or commit hash.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: svelte-version
+    attributes:
+      label: Svelte version
+      placeholder: "5.x"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include runtime, browser, operating system, and relevant build tooling.
+      placeholder: "Node.js ..., Vite ..., Firefox ..., Ubuntu ..."
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Provide a repository, StackBlitz, or minimal code sample and exact steps.
+      placeholder: |
+        1. Create ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Describe what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and screenshots
+      description: Include relevant error output, screenshots, or recordings. Remove secrets and personal data.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I provided a minimal reproduction or enough detail to reproduce the problem.
+          required: true
+        - label: I removed secrets and sensitive information from the report.
+          required: true
