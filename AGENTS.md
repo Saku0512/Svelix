@@ -69,7 +69,7 @@ Before making changes:
 - Validate public inputs at appropriate boundaries.
 - Handle errors explicitly; do not silently swallow failures.
 - Keep modules focused and avoid premature generalization.
-- Add or update tests for behavior changes and regression fixes.
+- Add or update tests for behavior changes and regression fixes, following the `svelix-testing` skill (`.agents/skills/svelix-testing/SKILL.md`) for test design, browser fixtures, type/package checks, and acceptance evidence.
 - Run relevant formatting, lint, type-check, test, and build commands that are available in the repository.
 - Report commands that could not be run and why. Never claim checks passed unless they were actually run.
 
