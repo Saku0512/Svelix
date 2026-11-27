@@ -143,7 +143,7 @@ v0.1.1/security_dependency-update
 
 1. Create the release branch from the current `main` for the intended release version.
 2. Create each release-work branch from its corresponding release branch, using the latest integrated changes.
-3. Commit focused changes using Conventional Commits 1.0.0.
+3. Commit changes according to the [commit policy](#commit-policy): atomic change boundaries and Conventional Commits 1.0.0 messages are both required.
 4. Open a pull request from the work branch into the corresponding release branch. Reference the issue and include validation results.
 5. Merge the work PR only after relevant review and checks. Delete completed work branches after merging when appropriate.
 6. Once the release scope and acceptance criteria are satisfied, open a release PR from the release branch into `main`.
@@ -203,57 +203,27 @@ Do not use pre-release tags as stable releases.
 
 Specification: https://semver.org/spec/v2.0.0.html
 
-## Atomic commits
+## Commit policy
 
-**One commit, one purpose.** Every development commit MUST represent a single coherent logical change, independently understandable and reviewable, and testable and reversible whenever practical.
+**Every commit MUST satisfy both requirements below. They are complementary, not alternatives.**
 
-### Commit granularity
+- **Atomic Commit** defines WHAT belongs in a commit: one coherent logical change.
+- **Conventional Commits 1.0.0** defines HOW that change is described in its commit message.
 
-- Split independent features, components, bug fixes, refactoring, formatting, and maintenance changes into separate commits.
+First determine the atomic change boundary, then write its Conventional Commits message. A correctly formatted message does not excuse unrelated changes, and an atomic change does not excuse an invalid message.
+
+### 1. Change boundaries (Atomic Commit)
+
+One commit, one purpose.
+
+- Separate independent features, components, bug fixes, refactoring, formatting, and maintenance changes.
 - Keep implementation, necessary types, directly related tests, documentation, and required dependency or lockfile changes together when they form one coherent change.
-- Do not split a single implementation mechanically by file, function, or line count.
-- Do not combine unrelated changes merely because they belong to the same issue or pull request.
-- Prefer a buildable state with relevant passing tests at every commit. Do not knowingly leave broken intermediate commits in the final PR history.
-- If checks cannot run or an intermediate state is unavoidable, document the limitation explicitly. Never claim unverified checks passed.
-- Keep commits reversible where practical, and make dependencies between commits explicit.
-- Follow Conventional Commits 1.0.0 for every commit message.
+- Do not split by file count, line count, or individual implementation steps.
+- Do not combine unrelated changes merely because they belong to the same issue or PR.
+- Keep each commit independently understandable, reviewable, and reversible whenever practical. Make dependencies between commits explicit.
+- Prefer a buildable state with relevant passing tests at every commit. Do not knowingly leave broken intermediate commits in the final PR history. Document unavoidable exceptions and unavailable checks.
 
-### Before committing
-
-1. Inspect the working tree and staged diff.
-2. Identify the single purpose of the proposed commit.
-3. Stage only changes necessary for that purpose, using selective staging when needed.
-4. Run relevant available checks against the intended commit state.
-5. Confirm the staged diff contains no unrelated edits, secrets, or unintended generated artifacts.
-6. Write a specific Conventional Commits message describing the change.
-
-Do not stage or commit unrelated user changes. Do not create empty, vague, or work-in-progress commits as a substitute for coherent history.
-
-### Examples
-
-Good, when each commit represents a complete logical change:
-
-```text
-feat(button): implement native button component
-feat(input): implement native input component
-fix(button): preserve native form submission
-test(forms): cover shared form behavior
-docs(button): document styling customization
-```
-
-Avoid overly broad commits such as `feat: implement all basic UI components` when the components can be implemented independently. Also avoid fragmenting a component into commits such as creating its file, adding its script, and adding its markup when those steps are not independently meaningful.
-
-### Pull request integration
-
-Prefer merge commits when preserving meaningful atomic commit history and PR boundaries is useful. Squash merging is acceptable when the complete PR represents one logical change or its intermediate commits do not provide useful history. Use a Conventional Commits-compliant merge or squash commit message, including for release PRs.
-
-Do not rewrite shared history or force-push shared branches to clean up commits. Follow the branch strategy and maintainer authorization rules.
-
-## Commit messages
-
-All commit messages MUST follow **Conventional Commits 1.0.0**.
-
-Format:
+### 2. Message format (Conventional Commits 1.0.0)
 
 ```text
 <type>[optional scope][!]: <description>
@@ -263,33 +233,64 @@ Format:
 [optional footer(s)]
 ```
 
-Rules:
-- Use a valid type such as `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, or `revert`.
-- Use a scope when it adds useful context, for example `feat(button): add disabled state`.
-- Separate type/scope from description with exactly `: `.
-- Write the description in the imperative mood, concise, and without a trailing period.
-- Use the body to explain motivation and relevant implementation details, not repeat the diff.
-- Use footers for issue references and metadata.
-- Mark breaking changes with `!` before the colon and/or a `BREAKING CHANGE: ` footer.
-- Reference issues using a footer such as `Closes #123` when the commit actually closes that issue.
-- Do not invent new commit types or add non-standard prefixes.
+- Use a project-supported type: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, or `revert`.
+- Select the type based on the primary purpose of the atomic change, not the kinds of files changed. A feature with its own tests and documentation is still a `feat` commit.
+- Use a scope when it identifies the affected area, for example `feat(button): add disabled state`.
+- Separate the type/scope from the description with exactly `: `.
+- Write a concise imperative description without a trailing period. Use the optional body to explain motivation and meaningful implementation details.
+- Mark breaking changes with `!` before the colon and/or a `BREAKING CHANGE: ` footer. Describe the incompatible change and migration where appropriate.
+- Use issue-reference footers such as `Refs #123` for partial work and `Closes #123` only when the change actually resolves the issue.
+- Do not invent commit types or use vague or work-in-progress messages.
 
-Examples:
+Specification: https://www.conventionalcommits.org/en/v1.0.0/
+
+### 3. Required commit workflow
+
+Repeat these steps for every logical change:
+
+1. Inspect the working tree and staged diff.
+2. Identify one coherent purpose and separate unrelated changes.
+3. Stage only the changes needed for that purpose, including directly related tests and documentation. Use selective staging when necessary; never stage unrelated user changes.
+4. Run relevant available checks against the intended commit state. Report any checks that cannot run; never claim unverified checks passed.
+5. Review the staged diff for unrelated changes, secrets, and unintended generated artifacts.
+6. Select the Conventional Commits type and scope, then write the message describing that single purpose.
+7. Create the commit and repeat for any remaining logical changes.
+
+Both the change boundary and message format must pass review before committing. Do not create empty commits or use a single commit for an entire issue merely for convenience.
+
+### 4. Examples
+
+An issue covering Button and Input may contain these separate atomic commits:
 
 ```text
-feat(button): add loading state
-fix(dialog): restore focus after close
-docs: document accessibility requirements
-refactor(compiler): isolate static layout transform
-perf(core): reduce component entrypoint size
-test(input): cover invalid value handling
-chore: update development dependencies
+feat(button): implement native button component
+feat(input): implement native input component
+fix(button): preserve native form submission
+test(forms): cover shared form behavior
+docs(forms): document component usage
+```
+
+Each implementation commit may include its own necessary types, tests, and documentation. Separate test or documentation commits are appropriate only when they represent independent logical work.
+
+Avoid these patterns:
+
+- `feat: implement all basic UI components` when the components are independent: valid message format, but not an atomic change.
+- `add button`: potentially atomic, but not a valid Conventional Commits message.
+- Separate commits for creating a component file, adding its script, and adding its markup when those steps have no independent value.
+
+Breaking change example:
+
+```text
 feat!: replace legacy theme API
 
 BREAKING CHANGE: remove the deprecated theme configuration
 ```
 
-Conventional Commits specification: https://www.conventionalcommits.org/en/v1.0.0/
+### 5. Pull request integration
+
+Prefer merge commits to preserve meaningful atomic development commits and PR boundaries. Squash merge is acceptable only when the resulting commit represents one coherent logical change. Integration merge commits may combine multiple existing atomic commits without changing their boundaries; their single purpose is branch integration. Use a Conventional Commits-compliant message for merge and squash commits, including release PRs (for example, `chore(release): integrate v0.1.0`).
+
+Do not rewrite shared history or force-push shared branches to clean up commits. Follow the branch strategy and maintainer authorization rules.
 
 ## Communication
 
