@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { build } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { ensureFreshDist } from './ensure-fresh-dist.mjs';
@@ -16,6 +16,31 @@ const packResult = (output, name) => {
   const pack = Array.isArray(parsed) ? parsed[0] : parsed[name] ?? Object.values(parsed)[0];
   if (!pack?.filename) throw new Error(`npm pack did not report a filename for ${name}`);
   return pack;
+};
+
+const assertPackedMarkdownLinksResolve = (packageRoot, document) => {
+  const documentPath = join(packageRoot, document);
+  const contents = readFileSync(documentPath, 'utf8');
+
+  for (const match of contents.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
+    const rawTarget = match[1].trim();
+    if (/^(?:[a-z][a-z\d+.-]*:|#)/i.test(rawTarget)) continue;
+
+    const target = rawTarget.split(/[?#]/, 1)[0];
+    const resolvedTarget = resolve(dirname(documentPath), decodeURI(target));
+    const relativeTarget = relative(packageRoot, resolvedTarget);
+
+    assert.ok(
+      relativeTarget !== '..'
+        && !relativeTarget.startsWith(`..${sep}`)
+        && !isAbsolute(relativeTarget),
+      `${document} link must stay inside the packed package: ${rawTarget}`
+    );
+    assert.ok(
+      existsSync(resolvedTarget),
+      `${document} link target must be present in the packed package: ${target}`
+    );
+  }
 };
 
 const EXPECTED_PACKAGE_FILES = [
@@ -73,7 +98,8 @@ try {
   if (installedSvelte.version !== '5.59.0') {
     throw new Error(`Expected consumer Svelte 5.59.0, got ${installedSvelte.version}`);
   }
-  const installedSvelix = JSON.parse(readFileSync(join(fixture, 'node_modules/svelix/package.json'), 'utf8'));
+  const installedPackageRoot = join(fixture, 'node_modules/svelix');
+  const installedSvelix = JSON.parse(readFileSync(join(installedPackageRoot, 'package.json'), 'utf8'));
   assert.equal(installedSvelix.name, 'svelix');
   assert.equal(installedSvelix.version, '0.1.0');
   assert.equal(installedSvelix.description, 'A small, composable, native-first UI component library for Svelte 5.');
@@ -89,6 +115,8 @@ try {
   assert.equal(installedSvelix.types, './dist/index.d.ts');
   assert.deepEqual(Object.keys(installedSvelix.exports).sort(), ['.', './styles.css']);
   assert.equal(installedSvelix.peerDependencies?.svelte, '^5.59.0');
+  assertPackedMarkdownLinksResolve(installedPackageRoot, 'README.md');
+  assertPackedMarkdownLinksResolve(installedPackageRoot, 'CHANGELOG.md');
   writeFileSync(join(fixture, 'consumer.ts'), `import type { ComponentProps } from 'svelte';
 import { Button, Checkbox, Input, Label, Radio, RadioGroup, Separator } from 'svelix';
 

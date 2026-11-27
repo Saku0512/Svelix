@@ -23,4 +23,4 @@ All notable changes to Svelix are documented in this file. This project follows 
 - Node.js 24 LTS is the development and release-check environment.
 - Automated browser verification covers Google Chrome on Linux; Firefox, Safari/WebKit, and real assistive technologies remain manual release checks.
 
-See the [v0.1.0 draft release notes](docs/releases/v0.1.0.md) for details and the pre-publication checklist.
+See the [v0.1.0 draft release notes](https://github.com/Saku0512/Svelix/blob/main/docs/releases/v0.1.0.md) for details and the pre-publication checklist.

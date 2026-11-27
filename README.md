@@ -349,7 +349,7 @@ Public token names use `--svelix-<semantic-role>`, with `-sm` / `-md` suffixes f
 | `spacing-xs`, `spacing-sm`, `spacing-md` | Padding and gaps |
 | `focus-ring`, `focus-ring-width`, `focus-ring-offset` | Visible keyboard focus |
 
-Exact default values are defined in [src/lib/styles.css](src/lib/styles.css). There are no duration or easing tokens. Button, Input, Checkbox, Radio Group, Label, and Separator do not animate, so a motion scale would be a public API with no consumer. The stylesheet also does not set `color-scheme`, `prefers-color-scheme`, or `prefers-reduced-motion`.
+Exact default values are defined in [src/lib/styles.css](https://github.com/Saku0512/Svelix/blob/main/src/lib/styles.css). There are no duration or easing tokens. Button, Input, Checkbox, Radio Group, Label, and Separator do not animate, so a motion scale would be a public API with no consumer. The stylesheet also does not set `color-scheme`, `prefers-color-scheme`, or `prefers-reduced-motion`.
 
 The v0.1.0 components consume these semantic tokens rather than duplicating palette values:
 
@@ -406,9 +406,9 @@ Keyboard focus is the supported check. Programmatic `element.focus()`, including
 
 ### Theme verification
 
-`npm run test:theme` serves the repository and runs [tests/theme.html](tests/theme.html) in headless Chromium. The fixture reports PASS or FAIL for theme inheritance, explicit `data-svelix-theme` selection, ordinary CSS overrides, host-style isolation, semantic token consumption for the six component roles, representative contrast pairs, and keyboard focus styling. It repeats the page under `prefers-color-scheme: dark` and `prefers-reduced-motion: reduce` and checks that those preferences do not switch the theme or remove the focus outline. The controls in the fixture are test-only native elements. This run does not prove full WCAG conformance.
+`npm run test:theme` serves the repository and runs [tests/theme.html](https://github.com/Saku0512/Svelix/blob/main/tests/theme.html) in headless Chromium. The fixture reports PASS or FAIL for theme inheritance, explicit `data-svelix-theme` selection, ordinary CSS overrides, host-style isolation, semantic token consumption for the six component roles, representative contrast pairs, and keyboard focus styling. It repeats the page under `prefers-color-scheme: dark` and `prefers-reduced-motion: reduce` and checks that those preferences do not switch the theme or remove the focus outline. The controls in the fixture are test-only native elements. This run does not prove full WCAG conformance.
 
-To inspect the same page manually, serve the repository root and open `tests/theme.html`, then press Tab through the primary button, the text field, and the dark-theme primary button until the page says PASS. The automated command is the project check. The package build and consumer checks remain required to verify the exported stylesheet.
+To inspect the same page manually, serve the repository root and open [`tests/theme.html`](https://github.com/Saku0512/Svelix/blob/main/tests/theme.html), then press Tab through the primary button, the text field, and the dark-theme primary button until the page says PASS. The automated command is the project check. The package build and consumer checks remain required to verify the exported stylesheet.
 
 ## Accessibility
 
