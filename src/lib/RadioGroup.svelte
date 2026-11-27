@@ -5,21 +5,21 @@
 
   type RadioGroupProps = HTMLFieldsetAttributes & {
     /**
-     * グループのアクセシブルなラベルとして `<legend>` 要素に描画する文字列または Snippet。
-     * 省略した場合は、子要素の先頭に独自に `<legend>` を配置できる。
+     * Accessible group label rendered inside `<legend>` as a string or Snippet.
+     * Omit to provide your own `<legend>` as the first child.
      */
     legend?: string | Snippet;
     /**
-     * グループ内の `<Radio>` に共有するネイティブ `name` 属性。
+     * Native `name` attribute shared with descendant `<Radio>` controls.
      */
     name?: string;
     /**
-     * 制御・双方向バインド時の選択値。省略時はネイティブの非制御ラジオグループとして動作する。
+     * Selected value in controlled/bound mode. Omit to keep native uncontrolled behavior.
      */
     value?: string;
   };
 
-  // value が未指定（非制御）か、明示指定・バインド済みかを判別する番兵値。
+  // Sentinel distinguishing an omitted (uncontrolled) `value` prop from a bound/controlled one.
   const VALUE_UNSET = Symbol('svelix.radio-group.value');
 
   let {
@@ -40,7 +40,7 @@
     valueAtReset: string | undefined;
   };
 
-  // この RadioGroup インスタンス自身の保留中リセットのみを追跡する。
+  // Track only pending resets belonging to this RadioGroup instance.
   const pendingResets = new Set<PendingReset>();
   let applyingReset = false;
 
@@ -66,12 +66,12 @@
   });
 
   function attachRadioGroupReset(fieldset: HTMLFieldSetElement) {
-    // document の capture フェーズで購読し、form 属性による所有者変更にも追従する。
+    // Listen on document in capture so ownership can change via the `form` attribute.
     const onReset = (event: Event) => {
       if (!isControlled) return;
       const form = event.target;
       if (!(form instanceof HTMLFormElement) || fieldset.form !== form) return;
-      // ネイティブのユーザー操作および form.reset() のみ対象とし、合成イベントは無視する。
+      // Handle native user activation and form.reset(); ignore synthetic reset events.
       if (!event.isTrusted) return;
 
       const entry: PendingReset = {
@@ -90,7 +90,7 @@
             applyingReset = false;
           });
         }
-        // ネイティブリセット後の DOM checked 状態を現在の value と一致させる。
+        // Re-sync DOM checked state with the live value after native reset.
         const current = value;
         for (const input of fieldset.querySelectorAll<HTMLInputElement>('input[type="radio"]')) {
           if (name && input.name !== name) continue;

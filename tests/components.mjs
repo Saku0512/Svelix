@@ -743,7 +743,7 @@ try {
     form: { topping: 'rice' }
   });
 
-  // HTMLFormElement.prototype.reset がマウント・アンマウントを通じて改変されないことを検証する。
+  // Verify HTMLFormElement.prototype.reset remains native and unchanged across mount/unmount.
   assert.deepEqual(await evaluate(`(() => {
     const before = HTMLFormElement.prototype.reset;
     const isNativeBefore = Function.prototype.toString.call(before).includes('[native code]');
@@ -763,7 +763,7 @@ try {
     sameAfterRemount: true
   });
 
-  // 同一タスク内でキャンセルされた reset の直後に有効な reset が続いた場合、モデルが同期されることを検証する。
+  // Verify a canceled reset followed by a valid reset in the same task syncs the model.
   await evaluate(`
     document.getElementById('topping-beans').click();
     Promise.resolve();
@@ -787,7 +787,7 @@ try {
     form: { topping: 'rice' }
   });
 
-  // 同一タスク内で有効な reset が 2 回連続した場合もデフォルトへ正しく同期されることを検証する。
+  // Verify two consecutive valid resets in the same task restore the default state.
   await evaluate(`
     document.getElementById('topping-beans').click();
     Promise.resolve();
@@ -811,7 +811,7 @@ try {
     form: { topping: 'rice' }
   });
 
-  // 別フォームのグループ更新がフォーム A の保留中リセットをキャンセルしないことを検証する。
+  // Verify updating a group in form B does not cancel form A's pending reset.
   await evaluate(`
     document.getElementById('isolated-a-checkbox').click();
     Promise.resolve();
@@ -836,7 +836,7 @@ try {
     bGroup: 'y'
   });
 
-  // 同一フォーム内の別グループ更新が他方のグループの保留中リセットをキャンセルしないことを検証する。
+  // Verify updating another group within the same form does not cancel the first group's reset.
   await evaluate(`
     document.getElementById('shared-group-one').click();
     Promise.resolve();
@@ -861,7 +861,7 @@ try {
     twoGroup: 'y'
   });
 
-  // 同じ group を共有する 2 つのフォームを同期的に連続リセットしても互いにキャンセルしないことを検証する。
+  // Verify synchronous resets across two forms sharing one group do not cancel each other.
   await evaluate(`
     document.getElementById('cross-shared-a').click();
     document.getElementById('cross-shared-b').click();
@@ -913,7 +913,7 @@ try {
     textOutput: 'switchable'
   });
 
-  // Checkbox と RadioGroup / Radio のセマンティクス・初期状態・アクセシブルネーム・スタイルを検証する。
+  // Verify Checkbox and RadioGroup/Radio semantics, initial state, accessible names, and styles.
   const selectionInitial = await evaluate(`(() => {
     const cb = document.getElementById('cb-controlled');
     const cbUncontrolled = document.getElementById('cb-uncontrolled');
@@ -986,7 +986,7 @@ try {
   assert.equal(selectionInitial.styles.darkRadioAccent, 'rgb(147, 197, 253)');
   assert.equal(selectionInitial.styles.darkRgBorder, 'rgb(148, 163, 184)');
 
-  // Checkbox のキーボード操作（Tab, Space, indeterminate 解除, disabled スキップ）を検証する。
+  // Verify Checkbox keyboard interaction (Tab, Space, clearing indeterminate, skipping disabled).
   await evaluate(`document.getElementById('selection-tab-start').focus()`);
   await key('Tab', 'Tab', 9);
   assert.equal(await evaluate(`document.activeElement.id`), 'cb-controlled');
@@ -1006,13 +1006,13 @@ try {
     changes: '1'
   });
 
-  // 無効化されたチェックボックスは Tab 順序からスキップされ、uncontrolled checkbox へ移動する。
+  // Disabled checkbox is skipped in Tab order, moving focus to the uncontrolled checkbox.
   await key('Tab', 'Tab', 9);
   assert.equal(await evaluate(`document.activeElement.id`), 'cb-uncontrolled');
   await key(' ', 'Space', 32);
   assert.equal(await evaluate(`document.getElementById('cb-uncontrolled').checked`), false);
 
-  // RadioGroup のキーボード操作（Tab で選択中ラジオへ移動、ArrowUp で disabled をスキップして移動）を検証する。
+  // Verify RadioGroup keyboard interaction (Tab into checked radio, ArrowUp skipping disabled option).
   await key('Tab', 'Tab', 9);
   assert.equal(await evaluate(`document.activeElement.id`), 'rg-plan-pro');
   assert.equal(await evaluate(`getComputedStyle(document.activeElement).outlineStyle`), 'solid');
@@ -1031,7 +1031,7 @@ try {
     changes: '1'
   });
 
-  // 非制御 RadioGroup へ Tab で移動し ArrowDown で切り替え、続く disabled RadioGroup はスキップされる。
+  // Tab to the uncontrolled RadioGroup, switch via ArrowDown, and skip the disabled RadioGroup.
   await key('Tab', 'Tab', 9);
   assert.equal(await evaluate(`document.activeElement.id`), 'rg-delivery-standard');
   await key('ArrowDown', 'ArrowDown', 40);
@@ -1043,7 +1043,7 @@ try {
     'disabled fieldset radio group must be skipped in tab order'
   );
 
-  // フォーム送信時の FormData と、ユーザー操作によるリセット、リセット直後の値書き込み保護を検証する。
+  // Verify FormData on submit, trusted reset, and preserving newer writes after form.reset().
   assert.deepEqual(
     await evaluate(`Object.fromEntries(new FormData(document.getElementById('selection-form')))`),
     {

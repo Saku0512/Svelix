@@ -18,7 +18,7 @@
   try {
     groupContext = getRadioGroupContext();
   } catch {
-    // RadioGroup 外で単独利用された場合は通常のネイティブ radio として動作する。
+    // When used outside a RadioGroup, fall back to standard native radio behavior.
     groupContext = undefined;
   }
 

@@ -12,12 +12,12 @@
     entries: ResetEntry[];
   };
 
-  // 同じネイティブ reset イベントに反応した兄弟の grouped checkbox を
-  // 1 つの macrotask 内でまとめて復元し、イベント単位で分離して扱う。
+  // Group sibling checkbox restores triggered by the same native reset event
+  // into a single macrotask, isolating separate reset events from each other.
   const pendingResetEvents = new WeakMap<Event, ResetBatch>();
 
-  // 内部リセット復元が生成した group オブジェクトとそのスナップショットを記録し、
-  // 別フォームの連続リセットによる更新をアプリ書き込みと誤認しないようにする。
+  // Record group objects and value snapshots produced by internal reset restores
+  // so consecutive resets across forms sharing one group are not treated as app writes.
   const resetDrivenSnapshots = new WeakMap<object, unknown[]>();
 </script>
 
@@ -66,7 +66,7 @@
     return Boolean(checked);
   });
 
-  // この Input インスタンス自身の保留中リセットエントリーのみを追跡する。
+  // Track only pending reset entries belonging to this Input instance.
   const pendingEntries = new Set<ResetEntry>();
 
   function isSameValues(a: unknown[] | null, b: unknown[] | null): boolean {
@@ -96,8 +96,8 @@
     return expected !== undefined && isSameValues(currentValues, expected);
   }
 
-  // このインスタンスの group がリセット後にアプリ側で更新された場合のみ、
-  // 該当する保留中リセットの復元をキャンセルする。
+  // Cancel pending reset restores for this instance only when application code
+  // updates its group after the reset event.
   $effect(() => {
     if (kind !== 'checkbox' || !usesGroup) return;
     const currentGroup = group;
@@ -129,14 +129,14 @@
   }
 
   function attachGroupedCheckboxReset(node: HTMLInputElement) {
-    // document の capture フェーズで購読し、form 属性による所有者変更にも追従する。
-    // Chromium ではユーザー操作によるリセット直後の microtask でリセット前の
-    // checked 状態が観測されるため、macrotask でネイティブリセット後に同期する。
+    // Listen on document in capture so ownership can change via the `form`
+    // attribute without rebinding. Defer with a macrotask because in Chromium
+    // a trusted user reset still observes pre-reset checked state in a microtask.
     const onReset = (event: Event) => {
       const form = event.target;
       if (!(form instanceof HTMLFormElement) || node.form !== form) return;
-      // ユーザー操作の reset ボタンおよびネイティブ form.reset() は isTrusted === true。
-      // 合成 dispatchEvent(new Event('reset')) は isTrusted === false なので無視する。
+      // Both user reset activation and native form.reset() emit isTrusted === true.
+      // Ignore synthetic dispatchEvent(new Event('reset')) where isTrusted === false.
       if (!event.isTrusted) return;
 
       const entry: ResetEntry = {
@@ -170,8 +170,8 @@
           for (const item of scheduled.entries) {
             if (!item.canceled) item.restore();
           }
-          // メンバーシップが不変でもネイティブリセットで DOM の checked が
-          // 書き換わることがあるため、現在の group を DOM へ再適用する。
+          // Native reset can clear checked even when membership is unchanged,
+          // so re-apply the live group to the DOM after restore or cancel.
           for (const item of scheduled.entries) item.syncDom();
         }, 0);
       }

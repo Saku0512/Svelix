@@ -4,7 +4,7 @@
 
   type CheckboxProps = Omit<HTMLInputAttributes, 'children' | 'type'>;
 
-  // checked が未指定（非制御）か、明示指定・バインド済みかを判別する番兵値。
+  // Sentinel distinguishing an omitted (uncontrolled) `checked` prop from a bound/controlled one.
   const CHECKED_UNSET = Symbol('svelix.checkbox.checked');
 
   let {
@@ -16,7 +16,7 @@
 
   const isControlled = $derived(checked !== (CHECKED_UNSET as unknown as boolean));
 
-  // 制御・バインドモード時はマウント時の既定値を固定し、form.reset() 時に復元できるようにする。
+  // Snapshot the mount-time default in controlled/bound mode so native form.reset() restores it.
   const snapshotDefaultChecked = untrack(() => {
     if (defaultChecked !== undefined) return Boolean(defaultChecked);
     if (checked !== (CHECKED_UNSET as unknown as boolean)) return Boolean(checked);
