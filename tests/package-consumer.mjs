@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { build } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { ensureFreshDist } from './ensure-fresh-dist.mjs';
@@ -70,9 +70,21 @@ const EXPECTED_PACKAGE_FILES = [
 ];
 
 try {
-  const pack = packResult(execFileSync(npm, ['pack', '--json', '--pack-destination', fixture], {
-    cwd: root, encoding: 'utf8', shell: process.platform === 'win32'
-  }), 'svelix');
+  const suppliedTarball = process.env.SVELIX_PACKAGE_TARBALL;
+  const suppliedMetadata = process.env.SVELIX_PACKAGE_METADATA;
+  if (Boolean(suppliedTarball) !== Boolean(suppliedMetadata)) {
+    throw new Error('SVELIX_PACKAGE_TARBALL and SVELIX_PACKAGE_METADATA must be provided together');
+  }
+  const pack = suppliedTarball
+    ? packResult(readFileSync(resolve(suppliedMetadata), 'utf8'), 'svelix')
+    : packResult(execFileSync(npm, ['pack', '--json', '--pack-destination', fixture], {
+      cwd: root, encoding: 'utf8', shell: process.platform === 'win32'
+    }), 'svelix');
+  if (suppliedTarball) {
+    const tarballPath = resolve(suppliedTarball);
+    assert.equal(basename(tarballPath), pack.filename, 'supplied tarball must match npm pack metadata');
+    copyFileSync(tarballPath, join(fixture, pack.filename));
+  }
   assert.equal(pack.name, 'svelix');
   assert.equal(pack.version, '0.1.0');
   assert.deepEqual(

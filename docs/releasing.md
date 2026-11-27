@@ -14,7 +14,10 @@ The workflow enforces the repository release policy:
 - A manually pushed matching tag may also start the workflow, but its commit must be contained in `main`.
 - Type checks, the package build, the full test suite, the clean reproducible package check, dependency audit, and package archive review must pass before a new tag is created.
 - Existing tags are never moved. A conflicting tag stops the workflow.
-- A rerun only accepts an existing npm version when its registry tarball integrity matches the locally built archive.
+- All release triggers share one package-level concurrency group, so manual and tag-triggered publications cannot overlap.
+- A candidate older than the current npm `latest` version is rejected before the workflow creates a tag or publishes anything.
+- The validation job creates the real npm archive, verifies its allowlist and consumer contract, records its SHA-256 digest, and transfers that exact artifact to the publication job.
+- A rerun only accepts an existing npm version when its registry tarball integrity matches the verified artifact and that version is still npm `latest`.
 - The npm `latest` tag must resolve to the package version before the GitHub Release is published.
 - The `npm` GitHub Environment gates the tag-and-publish job and can require maintainer approval.
 
@@ -58,6 +61,6 @@ Pushing an already-created matching stable tag can also start the workflow. Pref
 
 ## Failure and rerun behavior
 
-If validation fails, no new tag or publication is created. If a later external operation fails, fix the external configuration and rerun the same workflow without moving the tag or changing the package version. The rerun verifies the existing tag commit and npm tarball integrity before continuing.
+If validation fails, no new tag or publication is created. If a later external operation fails, fix the external configuration and rerun the same workflow without moving the tag or changing the package version. The rerun verifies the existing tag commit, the transferred artifact digest, the npm tarball integrity, and the current npm `latest` version before continuing. If a matching published version is no longer `latest`, the workflow stops for manual registry review instead of changing distribution tags implicitly.
 
 Never delete or overwrite a published tag or npm version. Fix a defective release in a new SemVer version.
