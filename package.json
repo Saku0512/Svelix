@@ -20,6 +20,7 @@
   "scripts": {
     "build": "svelte-package",
     "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test:components": "node tests/components.mjs",
     "test:theme": "node tests/theme.mjs",
     "test:package": "node tests/package-consumer.mjs",
     "test:package:clean": "node tests/package-clean.mjs"
