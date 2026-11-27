@@ -238,6 +238,10 @@ One commit, one purpose.
 - Do not combine unrelated changes merely because they belong to the same issue or PR.
 - Keep each commit independently understandable, reviewable, and reversible whenever practical. Make dependencies between commits explicit.
 - Prefer a buildable state with relevant passing tests at every commit. Do not knowingly leave broken intermediate commits in the final PR history. Document unavoidable exceptions and unavailable checks.
+- Split separate concerns. Examples are different token groups, a test harness and the cases that use it, documentation sections that explain different behavior, and dependency or configuration changes.
+- Treat a subject line that needs "and" to join two concerns as a signal to split the commit.
+- Keep tests, types, and documentation that specify the same change in that change's commit. Do not split one behavior into a file, its script, and its markup when those pieces have no independent meaning.
+- Do not collect a whole issue into one large commit. Each commit should pass the configured type check and production build.
 
 ### 2. Message format (Conventional Commits 1.0.0)
 
@@ -291,6 +295,7 @@ Each implementation commit may include its own necessary types, tests, and docum
 Avoid these patterns:
 
 - `feat: implement all basic UI components` when the components are independent: valid message format, but not an atomic change.
+- `feat(theme): add color tokens and browser tests` when the tokens and the tests are separate concerns.
 - `add button`: potentially atomic, but not a valid Conventional Commits message.
 - Separate commits for creating a component file, adding its script, and adding its markup when those steps have no independent value.
 
