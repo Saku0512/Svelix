@@ -3,11 +3,13 @@ A compiler-first UI library for Svelte, inspired by the Unix philosophy.  Small,
 
 ## Development
 
-Use Node.js 24 LTS for development; the current checks have been run with Node.js 26.13.1 and npm 11.20.0. This is a development-tool requirement, not a statement about consumers' runtime or browser compatibility. Install the locked dependencies with `npm ci`, then run `npm run check` and `npm run build`. The build writes the distributable package to `dist/`.
+Use Node.js 24 LTS for development. The checks for this revision were run with Node.js 22.23.4 and npm 10.9.9. This is a development-tool requirement, not a statement about consumers' runtime or browser compatibility. Install the locked dependencies with `npm ci`, then run `npm run check` and `npm run build`. The build writes the distributable package to `dist/`.
 
 After building, run `npm run test:package` to pack the library, install it in a temporary Svelte application, type-check its entry point, and build that application. The test uses npm's local cache for the fixture installation.
 
 Run `npm run test:package:clean` for a clean install and repeat-build comparison of the actual source, followed by a temporary Svelte component to verify generated types and an external application build. It requires npm registry access.
+
+Run `npm run test:theme` to check the theme fixture in headless Chromium. It needs a local Chrome or Chromium binary and does not add a browser package. Set `CHROME_PATH` when the binary is not `google-chrome` on `PATH`. Set `THEME_SCREENSHOT_DIR` to write light and dark PNG captures of the fixture.
 
 The package exposes its shared CSS as `svelix/styles.css`. UI components are under development.
 
@@ -102,3 +104,11 @@ Apply the class directly to the desired scope; an explicitly themed nested scope
 ### Reduced motion and visible focus
 
 `prefers-reduced-motion` does not change these tokens, because nothing in the theme stylesheet animates or transitions. Visible focus is an instantaneous outline using the focus-ring tokens on `:focus-visible`. That outline stays in place when reduced motion is requested. A later component that introduces animation must add its own motion behavior and honor `prefers-reduced-motion: reduce` without removing the focus outline.
+
+Keyboard focus is the supported check. Programmatic `element.focus()`, including `focus({ focusVisible: true })`, did not match `:focus-visible` in the headless Chromium runs of `npm run test:theme`, including the reduced-motion run. The fixture therefore records the focus outline only after a Tab key.
+
+### Theme verification
+
+`npm run test:theme` serves the repository and runs [tests/theme.html](tests/theme.html) in headless Chromium. The fixture reports PASS or FAIL for theme inheritance, explicit `data-svelix-theme` selection, ordinary CSS overrides, host-style isolation, semantic token consumption for the six component roles, representative contrast pairs, and keyboard focus styling. It repeats the page under `prefers-color-scheme: dark` and `prefers-reduced-motion: reduce` and checks that those preferences do not switch the theme or remove the focus outline. The controls in the fixture are test-only native elements. This run does not prove full WCAG conformance.
+
+To inspect the same page manually, serve the repository root and open `tests/theme.html`, then press Tab through the primary button, the text field, and the dark-theme primary button until the page says PASS. The automated command is the project check. The package build and consumer checks remain required to verify the exported stylesheet.
