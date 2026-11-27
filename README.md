@@ -62,6 +62,7 @@ See the [component API and examples](https://github.com/Saku0512/Svelix/blob/mai
 | [Accessibility](https://github.com/Saku0512/Svelix/blob/main/docs/accessibility.md) | Automated coverage, consumer responsibilities, and manual checks. |
 | [Compatibility](https://github.com/Saku0512/Svelix/blob/main/docs/compatibility.md) | Verified Svelte, toolchain, SSR, browser, TypeScript, and Node.js scope. |
 | [Development and verification](https://github.com/Saku0512/Svelix/blob/main/docs/verification.md) | Repository setup and release-check commands. |
+| [Release automation](https://github.com/Saku0512/Svelix/blob/main/docs/releasing.md) | Guarded tagging, npm publication, trusted publishing, and GitHub Releases. |
 | [Contributing](https://github.com/Saku0512/Svelix/blob/main/CONTRIBUTING.md) | Branch, commit, test, and pull-request requirements. |
 
 ## Compatibility
@@ -87,6 +88,7 @@ See [development and verification](https://github.com/Saku0512/Svelix/blob/main/
 - [v0.1.0 release notes](https://github.com/Saku0512/Svelix/blob/main/docs/releases/v0.1.0.md) contain the release summary, compatibility notes, verification evidence, and publication checklist.
 
 Creating a Git tag or publishing the npm package is a separate maintainer-authorized action. Preparing these documents does not publish or tag a release.
+After an approved release PR is merged, maintainers can perform that action through the guarded [release workflow](https://github.com/Saku0512/Svelix/blob/main/docs/releasing.md).
 
 ## License
 

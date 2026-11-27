@@ -12,6 +12,7 @@ Svelix documentation is organized by task so the project README can stay focused
 ## Contributor and release guides
 
 - [Development and verification](verification.md) — setup, builds, tests, package checks, and CI.
+- [Release automation](releasing.md) — guarded tagging, npm publication, trusted publishing, and GitHub Releases.
 - [Contributing](../CONTRIBUTING.md) — branch, commit, test, and pull-request requirements.
 - [Changelog](../CHANGELOG.md) — user-visible changes.
 - [v0.1.0 release notes](releases/v0.1.0.md) — release summary and publication checklist.
