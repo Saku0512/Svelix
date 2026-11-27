@@ -108,6 +108,22 @@ Before making changes:
 - Run the checks relevant to the change.
 - Summarize what changed, what was tested, and any remaining limitations.
 
+### Pull request readiness (mandatory gate)
+
+Before opening any pull request, including a draft PR, the agent MUST verify that every acceptance criterion of each issue the PR is intended to resolve has been satisfied. Passing tests alone does not establish issue completion.
+
+1. Fetch the latest linked issue body, acceptance criteria, task checklist, and relevant comments or approved scope decisions.
+2. Inspect the complete proposed PR diff against the intended base branch. Map every acceptance criterion to concrete implementation and verification evidence.
+3. Run all relevant available tests, builds, lint, type checks, and required manual or integration checks. Verify the final proposed changes, not an earlier revision.
+4. Confirm that no required implementation, documentation, test, or verification remains incomplete. Treat unchecked, failed, blocked, or unverified requirements as incomplete until evidence establishes completion.
+5. Only after all applicable acceptance criteria are verified, open the PR using the repository PR template. Reference the issue and include a criterion-by-criterion checklist with supporting evidence (tests, commands, results, or relevant files).
+
+**If any acceptance criterion is incomplete or cannot be verified, do not open a PR (including a draft PR).** Continue the work where possible; otherwise report the blocker and remaining criteria to the maintainer. Do not silently omit, weaken, defer, or mark a criterion complete without evidence. Any scope change or exception requires explicit maintainer approval before opening the PR.
+
+For a release-work PR, evaluate the criteria of its assigned issue, not unrelated sibling issues or the entire release. For a release PR, verify the parent release issue, all required child tasks, and the applicable pre-release acceptance criteria. Actions that necessarily occur after merge (such as authorized tagging or publication) must be explicitly identified as post-merge steps, never reported as already completed.
+
+Use closing references only when the PR actually resolves the linked issue. Recheck the criteria if requirements or the PR diff change after opening.
+
 ## Branch strategy
 
 Svelix uses release-oriented development. Apart from the default branch, there are two branch categories: release branches and release-work branches.
@@ -144,9 +160,9 @@ v0.1.1/security_dependency-update
 1. Create the release branch from the current `main` for the intended release version.
 2. Create each release-work branch from its corresponding release branch, using the latest integrated changes.
 3. Commit changes according to the [commit policy](#commit-policy): atomic change boundaries and Conventional Commits 1.0.0 messages are both required.
-4. Open a pull request from the work branch into the corresponding release branch. Reference the issue and include validation results.
+4. Satisfy the [pull request readiness gate](#pull-request-readiness-mandatory-gate) before opening a pull request from the work branch into the corresponding release branch. Reference the issue and include validation evidence.
 5. Merge the work PR only after relevant review and checks. Delete completed work branches after merging when appropriate.
-6. Once the release scope and acceptance criteria are satisfied, open a release PR from the release branch into `main`.
+6. Once the release scope and acceptance criteria are satisfied and the pull request readiness gate has passed, open a release PR from the release branch into `main`.
 7. After the release PR is approved and merged, create the matching release tag on the intended commit in `main`, subject to the release authorization rules below.
 
 ### Safety and maintenance
