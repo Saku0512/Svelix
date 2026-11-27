@@ -71,18 +71,19 @@ Button content normally provides its accessible name. Icon-only buttons must rec
 
 ### Input
 
-Input renders a native `<input>`, forwards native attributes and event callbacks, and applies the Svelte binding that matches the input type. `type` matching is ASCII case-insensitive.
+Input renders a native `<input>`, forwards native attributes and event callbacks, and applies the Svelte binding or native checked-state behavior that matches the input type. `type` matching is ASCII case-insensitive.
 
 #### API
 
 | Svelix prop / binding | Type | Default | Behavior |
 | --- | --- | --- | --- |
-| `type` | Native input type string | `'text'` | Selects the native input type and corresponding binding. |
+| `type` | Native input type string | `'text'` | Selects the native input type and corresponding state handling. |
 | `bind:value` | Native input value type | `undefined` | Used by text-like and other value-based inputs. |
-| `bind:checked` | `boolean` | `undefined` | Used by ungrouped checkbox and radio inputs. |
+| `bind:checked` | `boolean` | `undefined` | Provides two-way checked-state binding for ungrouped checkbox inputs. |
+| `checked` | `boolean` | `undefined` | Sets an ungrouped radio's native checked state. User selection is not written back through `bind:checked`; use `bind:group` for reactive radio selection. |
 | `bind:files` | `FileList \| undefined` | `undefined` | Used by file inputs; browsers do not accept a path string. |
 | `bind:group` | `string \| number \| boolean \| Array<string \| number \| boolean> \| null` | omitted | Enables reactive radio or checkbox grouping. |
-| `defaultChecked` | `boolean` | inferred from initial state | Sets the mount-time form-reset baseline for checkbox and radio inputs. |
+| `defaultChecked` | `boolean` | inferred from initial state | Sets the mount-time form-reset baseline for ungrouped checkboxes/radios and grouped checkboxes. It is not forwarded for grouped radios. |
 
 All other native `HTMLInputAttributes` except `children` are forwarded.
 
@@ -93,7 +94,7 @@ All other native `HTMLInputAttributes` except `children` are forwarded.
 | `file` | `bind:files` (`FileList`; leave unset initially; do not assign a path string) |
 | other | `bind:value` (supports `defaultValue` form reset) |
 
-`defaultChecked` (and the inferred initial checked/`group` membership used when it is omitted) is snapshotted when the Input instance mounts. Later updates to a reactive `defaultChecked` prop do not change the form-reset baseline. Grouped checkbox reset follows trusted reset-button activation and `HTMLFormElement.reset()`, ignores synthetic `dispatchEvent(new Event('reset'))`, and does not overwrite a newer `group` write that happens immediately after `reset()`.
+For ungrouped checkboxes/radios and grouped checkboxes, `defaultChecked` (and the inferred initial checked/`group` membership used when it is omitted) is snapshotted when the Input instance mounts. Later updates to a reactive `defaultChecked` prop do not change the form-reset baseline. A grouped radio does not forward `defaultChecked`; initialize its bound `group` to the desired option or `null`. Grouped checkbox reset follows trusted reset-button activation and `HTMLFormElement.reset()`, ignores synthetic `dispatchEvent(new Event('reset'))`, and does not overwrite a newer `group` write that happens immediately after `reset()`.
 
 ```svelte
 <script lang="ts">
@@ -156,6 +157,8 @@ Use a visible `<label>` associated with `for` and `id`; a placeholder is not a l
 | `defaultChecked` | `boolean` | `undefined` | Sets the initial and form-reset checked state. |
 
 Native input attributes and event callbacks are forwarded except `type` and `children`; the rendered input type is always `checkbox`.
+
+When binding `checked` or `indeterminate`, initialize the parent state to a defined boolean (`true` or `false`). Svelte rejects an initially `undefined` binding because these bindable props provide fallback values.
 
 - **Controlled / bound**: Pass `bind:checked` (or `checked`). The mount-time `defaultChecked` (or initial `checked`) is snapshotted so native `form.reset()` restores the baseline and syncs the binding.
 - **Uncontrolled**: Omit `checked` and optionally pass `defaultChecked`. The browser owns checked state and form reset natively.
