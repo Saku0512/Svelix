@@ -269,7 +269,7 @@
     line-height: 1.5;
   }
 
-  :where(input::placeholder) {
+  :where(input)::placeholder {
     color: var(--svelix-muted-foreground);
     opacity: 1;
   }

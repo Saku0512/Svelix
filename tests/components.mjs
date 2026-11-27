@@ -103,6 +103,7 @@ try {
     '--no-first-run',
     '--no-default-browser-check',
     '--disable-extensions',
+    ...(process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage'] : []),
     `--user-data-dir=${profile}`,
     '--remote-debugging-port=0',
     'about:blank'
@@ -130,7 +131,11 @@ try {
     }
   }
 
-  const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+  const targets = await (
+    await fetch(`http://127.0.0.1:${debugPort}/json/list`, {
+      signal: AbortSignal.timeout(SOCKET_OPEN_MS)
+    })
+  ).json();
   const page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
   if (!page) throw new Error('Chrome did not expose a page target');
 
@@ -276,6 +281,7 @@ try {
       ignored: Boolean(node?.ignored),
       role: node?.role?.value ?? null,
       name: node?.name?.value ?? null,
+      description: node?.description?.value ?? null,
       properties: props
     };
   };
@@ -291,7 +297,7 @@ try {
   assert.equal(await evaluate(`document.body?.dataset.ready`), 'true', 'fixture did not mount');
 
   const details = await evaluate(`(() => {
-    const style = (id) => getComputedStyle(document.getElementById(id));
+    const style = (id, pseudo) => getComputedStyle(document.getElementById(id), pseudo);
     const email = document.getElementById('email');
     const invalid = document.getElementById('invalid');
     const nativeInvalid = document.getElementById('native-invalid');
@@ -343,6 +349,8 @@ try {
         ghost: style('ghost').backgroundColor,
         disabled: style('disabled').backgroundColor,
         disabledInput: style('disabled-input').backgroundColor,
+        placeholderColor: style('tab-input', '::placeholder').color,
+        placeholderOpacity: style('tab-input', '::placeholder').opacity,
         customButton: style('custom-button').backgroundColor,
         invalidBorder: style('invalid').borderColor,
         readonly: style('readonly').backgroundColor,
@@ -408,6 +416,8 @@ try {
   assert.equal(details.styles.ghost, 'rgba(0, 0, 0, 0)');
   assert.equal(details.styles.disabled, 'rgb(241, 245, 249)');
   assert.equal(details.styles.disabledInput, 'rgb(241, 245, 249)');
+  assert.equal(details.styles.placeholderColor, 'rgb(71, 85, 105)');
+  assert.equal(details.styles.placeholderOpacity, '1');
   assert.equal(details.styles.customButton, 'rgb(4, 120, 87)');
   assert.equal(details.styles.invalidBorder, 'rgb(185, 28, 28)');
   assert.equal(details.styles.readonly, 'rgb(241, 245, 249)');
@@ -1753,6 +1763,83 @@ try {
         features: [{ name: 'forced-colors', value: 'none' }]
       });
     }
+  });
+
+  // Verify CDP Accessibility Tree roles, names, descriptions, and states across Button, Input, Checkbox, and RadioGroup/Radio.
+  await runCase('accessibility: AX roles, names, descriptions, and states across interactive components', async () => {
+    const axKeyboardBtn = await getAxNode('keyboard');
+    const axDisabledBtn = await getAxNode('disabled');
+    assert.equal(axKeyboardBtn.role, 'button');
+    assert.equal(axKeyboardBtn.name, 'Keyboard action');
+    assert.equal(axKeyboardBtn.properties.focusable, true);
+    assert.equal(axDisabledBtn.role, 'button');
+    assert.equal(axDisabledBtn.name, 'Disabled');
+    assert.equal(axDisabledBtn.properties.disabled, true);
+
+    const axEmail = await getAxNode('email');
+    const axInvalidInput = await getAxNode('invalid');
+    const axReadonlyInput = await getAxNode('readonly');
+    assert.equal(axEmail.role, 'textbox');
+    assert.equal(axEmail.name, 'Email address');
+    assert.equal(axEmail.properties.required, true);
+    assert.equal(axInvalidInput.role, 'textbox');
+    assert.equal(axInvalidInput.name, 'Invalid value');
+    assert.equal(axInvalidInput.description, 'Enter a valid value.');
+    assert.equal(axInvalidInput.properties.invalid, 'true');
+    assert.equal(axReadonlyInput.role, 'textbox');
+    assert.equal(axReadonlyInput.name, 'Readonly value');
+    assert.equal(axReadonlyInput.properties.readonly, true);
+
+    // #cb-controlled was set to indeterminate=true earlier; AX checked state must be 'mixed'.
+    const axMixedCb = await getAxNode('cb-controlled');
+    assert.equal(axMixedCb.role, 'checkbox');
+    assert.equal(axMixedCb.name, 'Controlled checkbox');
+    assert.equal(axMixedCb.description, 'Required for confirmation.');
+    assert.equal(axMixedCb.properties.checked, 'mixed');
+
+    // Toggle #cb-controlled via trusted click to clear indeterminate and verify AX checked transition.
+    await mouseClick('cb-controlled-label');
+    const axToggledCb = await getAxNode('cb-controlled');
+    assert.notEqual(axToggledCb.properties.checked, 'mixed');
+    assert.equal(
+      axToggledCb.properties.checked,
+      (await evaluate(`document.getElementById('cb-controlled').checked`)) ? 'true' : 'false'
+    );
+
+    const axDisabledCb = await getAxNode('cb-disabled');
+    const axInvalidCb = await getAxNode('cb-invalid');
+    assert.equal(axDisabledCb.role, 'checkbox');
+    assert.equal(axDisabledCb.name, 'Disabled checkbox');
+    assert.equal(axDisabledCb.properties.disabled, true);
+    assert.equal(axInvalidCb.role, 'checkbox');
+    assert.equal(axInvalidCb.name, 'Invalid checkbox');
+    assert.equal(axInvalidCb.description, 'Accept to continue.');
+    assert.equal(axInvalidCb.properties.invalid, 'true');
+
+    const axPlanGroup = await getAxNode('rg-plan');
+    const axSnippetGroup = await getAxNode('rg-uncontrolled');
+    const axDisabledGroup = await getAxNode('rg-disabled-group');
+    const axPlanBasic = await getAxNode('rg-plan-basic');
+    const axPlanPro = await getAxNode('rg-plan-pro');
+    const axPlanDisabled = await getAxNode('rg-plan-disabled');
+    const axLockedRadio = await getAxNode('rg-locked-a');
+    assert.equal(axPlanGroup.role, 'group');
+    assert.equal(axPlanGroup.name, 'Billing plan');
+    assert.equal(axSnippetGroup.role, 'group');
+    assert.equal(axSnippetGroup.name, 'Delivery method');
+    assert.equal(axDisabledGroup.role, 'group');
+    assert.equal(axDisabledGroup.name, 'Disabled group');
+    assert.equal(axPlanBasic.role, 'radio');
+    assert.equal(axPlanBasic.name, 'Basic');
+    assert.equal(axPlanBasic.properties.checked, 'false');
+    assert.equal(axPlanPro.role, 'radio');
+    assert.equal(axPlanPro.name, 'Pro');
+    assert.equal(axPlanPro.properties.checked, 'true');
+    assert.equal(axPlanDisabled.role, 'radio');
+    assert.equal(axPlanDisabled.name, 'Legacy');
+    assert.equal(axPlanDisabled.properties.disabled, true);
+    assert.equal(axLockedRadio.role, 'radio');
+    assert.equal(axLockedRadio.properties.disabled, true);
   });
 
   assert.deepEqual(pageErrors, [], 'unexpected browser runtime or console errors');

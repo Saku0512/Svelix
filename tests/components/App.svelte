@@ -65,7 +65,7 @@
   <Button id="keyboard" onclick={() => (keyboardActivations += 1)}>Keyboard action</Button>
   <Button id="disabled" disabled onclick={() => (disabledActivations += 1)}>Disabled</Button>
   <Input id="disabled-input" aria-label="Disabled input" disabled />
-  <Input id="tab-input" aria-label="Tab destination" />
+  <Input id="tab-input" aria-label="Tab destination" placeholder="Tab destination" />
 
   <Button id="secondary" variant="secondary">Secondary</Button>
   <Button id="outline" variant="outline">Outline</Button>

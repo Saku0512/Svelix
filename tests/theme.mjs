@@ -51,6 +51,7 @@ const chrome = spawn(executable, [
   '--no-first-run',
   '--no-default-browser-check',
   '--disable-extensions',
+  ...(process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage'] : []),
   `--user-data-dir=${profile}`,
   '--remote-debugging-port=0',
   'about:blank'
@@ -87,7 +88,11 @@ try {
       await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
     }
   }
-  const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+  const targets = await (
+    await fetch(`http://127.0.0.1:${debugPort}/json/list`, {
+      signal: AbortSignal.timeout(10000)
+    })
+  ).json();
   const page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
   if (!page) throw new Error('Chrome did not expose a page target');
   socket = new WebSocket(page.webSocketDebuggerUrl);
