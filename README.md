@@ -9,4 +9,92 @@ After building, run `npm run test:package` to pack the library, install it in a 
 
 Run `npm run test:package:clean` for a clean install and repeat-build comparison of the actual source, followed by a temporary Svelte component to verify generated types and an external application build. It requires npm registry access.
 
-The package exposes its shared CSS as `svelix/styles.css`. Components and theme tokens are under development.
+The package exposes its shared CSS as `svelix/styles.css`. UI components are under development.
+
+## Theme
+
+Import the shared stylesheet once in the application:
+
+```svelte
+<script lang="ts">
+  import 'svelix/styles.css';
+</script>
+```
+
+Light is the default. Set `data-svelix-theme="dark"` on the document root or on an element to select dark tokens for its subtree. Set `data-svelix-theme="light"` to explicitly select light, including inside a dark subtree.
+
+```html
+<section data-svelix-theme="dark">
+  <!-- Dark-themed components -->
+  <section data-svelix-theme="light">
+    <!-- Light-themed components -->
+  </section>
+</section>
+```
+
+The stylesheet defines only namespaced CSS custom properties. It does not set the page background, text color, font, reset styles, or browser color scheme. Consumers own application-level styles. Theme selection needs no Svelix JavaScript. System color preferences are not applied automatically; explicit selection always wins.
+
+### Tokens
+
+Public token names use `--svelix-<semantic-role>`, with `-sm` / `-md` suffixes for scale values. Colors are reset by each explicit light/dark scope. Shared dimensions inherit from the document root unless overridden.
+
+| Token suffix (prefix: `--svelix-`) | Purpose |
+| --- | --- |
+| `background`, `foreground` | Default surface and text |
+| `primary`, `primary-foreground` | Primary actions and their text |
+| `secondary`, `secondary-foreground` | Secondary actions and their text |
+| `muted`, `muted-foreground` | Subdued surfaces and text |
+| `border`, `border-width` | Control boundaries and separators |
+| `danger` | Invalid/error text and indicators |
+| `radius-sm`, `radius-md` | Corner radii |
+| `spacing-xs`, `spacing-sm`, `spacing-md` | Padding and gaps |
+| `focus-ring`, `focus-ring-width`, `focus-ring-offset` | Visible keyboard focus |
+
+Exact default values are defined in [src/lib/styles.css](src/lib/styles.css).
+
+Components should consume these semantic tokens rather than duplicate palette values. The v0.1.0 components are implemented by #5, #6, and #7; this stylesheet does not ship those components. Their styles should use the tokens below:
+
+| Component need | Tokens |
+| --- | --- |
+| Button primary | `primary`, `primary-foreground`, `radius-md`, `spacing-sm`, `spacing-md`, `border-width`, focus tokens |
+| Button secondary | `secondary`, `secondary-foreground`, plus the shared radius, spacing, border, and focus tokens |
+| Button outline | `background`, `foreground`, `border`, `border-width` |
+| Button ghost | `foreground`. A transparent fill is the absence of a color, not another token |
+| Button disabled | `muted`, `muted-foreground` |
+| Input | `background`, `foreground`, `border`, `border-width`, `radius-sm`, `spacing-xs`, `spacing-sm`, focus tokens |
+| Input invalid | `danger` for the border and the invalid text |
+| Input disabled or readonly | `muted`, `muted-foreground` |
+| Checkbox and radio | `primary` through `accent-color`, `foreground`, `border`, focus tokens |
+| Radio group | `border`, `border-width`, `radius-sm`, `spacing-sm`, `foreground` |
+| Label | `foreground` |
+| Separator | `border`, `border-width`, `spacing-sm` |
+
+Disabled controls use the muted colors rather than an opacity token. Opacity would also fade a focus ring, and the component issues do not ask for a separate disabled opacity. Hover and active colors are not part of those issues, so they are not tokens yet.
+
+Because `color-scheme` is not set, an Input implementation has to paint `background`, `color`, and `border` from tokens itself. Native checkbox and radio marks should use `accent-color: var(--svelix-primary)` instead of relying on the user agent's color scheme.
+
+For example, the following is an illustrative style, not a shipped Svelix component:
+
+```css
+button.example {
+  background: var(--svelix-primary);
+  color: var(--svelix-primary-foreground);
+  border-radius: var(--svelix-radius-md);
+}
+button.example:focus-visible {
+  outline: var(--svelix-focus-ring-width) solid var(--svelix-focus-ring);
+  outline-offset: var(--svelix-focus-ring-offset);
+}
+```
+
+Override tokens with ordinary CSS on the theme scope or a descendant. The library uses zero-specificity selectors, so application selectors such as classes take precedence. For equal-specificity rules, load overrides after the library stylesheet. Override paired background/foreground colors together and verify contrast.
+
+```css
+.my-theme {
+  --svelix-primary: #047857;
+  --svelix-primary-foreground: #ffffff;
+  --svelix-radius-md: 1rem;
+}
+```
+
+Apply the class directly to the desired scope; an explicitly themed nested scope resets its own color tokens.
