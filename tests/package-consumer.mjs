@@ -1,0 +1,318 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { build } from 'vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { ensureFreshDist } from './ensure-fresh-dist.mjs';
+
+const root = process.cwd();
+ensureFreshDist(root);
+const fixture = mkdtempSync(join(tmpdir(), 'svelix-consumer-'));
+const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const packResult = (output, name) => {
+  const parsed = JSON.parse(output);
+  const pack = Array.isArray(parsed) ? parsed[0] : parsed[name] ?? Object.values(parsed)[0];
+  if (!pack?.filename) throw new Error(`npm pack did not report a filename for ${name}`);
+  return pack;
+};
+
+const assertPackedMarkdownLinksResolve = (packageRoot, document) => {
+  const documentPath = join(packageRoot, document);
+  const contents = readFileSync(documentPath, 'utf8');
+
+  for (const match of contents.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
+    const rawTarget = match[1].trim();
+    if (/^(?:[a-z][a-z\d+.-]*:|#)/i.test(rawTarget)) continue;
+
+    const target = rawTarget.split(/[?#]/, 1)[0];
+    const resolvedTarget = resolve(dirname(documentPath), decodeURI(target));
+    const relativeTarget = relative(packageRoot, resolvedTarget);
+
+    assert.ok(
+      relativeTarget !== '..'
+        && !relativeTarget.startsWith(`..${sep}`)
+        && !isAbsolute(relativeTarget),
+      `${document} link must stay inside the packed package: ${rawTarget}`
+    );
+    assert.ok(
+      existsSync(resolvedTarget),
+      `${document} link target must be present in the packed package: ${target}`
+    );
+  }
+};
+
+const EXPECTED_PACKAGE_FILES = [
+  'CHANGELOG.md',
+  'LICENSE',
+  'README.md',
+  'dist/Button.svelte',
+  'dist/Button.svelte.d.ts',
+  'dist/Checkbox.svelte',
+  'dist/Checkbox.svelte.d.ts',
+  'dist/Input.svelte',
+  'dist/Input.svelte.d.ts',
+  'dist/Label.svelte',
+  'dist/Label.svelte.d.ts',
+  'dist/Radio.svelte',
+  'dist/Radio.svelte.d.ts',
+  'dist/RadioGroup.svelte',
+  'dist/RadioGroup.svelte.d.ts',
+  'dist/Separator.svelte',
+  'dist/Separator.svelte.d.ts',
+  'dist/index.d.ts',
+  'dist/index.js',
+  'dist/radio-group-context.d.ts',
+  'dist/radio-group-context.js',
+  'dist/styles.css',
+  'package.json'
+];
+
+try {
+  const suppliedTarball = process.env.SVELIX_PACKAGE_TARBALL;
+  const suppliedMetadata = process.env.SVELIX_PACKAGE_METADATA;
+  if (Boolean(suppliedTarball) !== Boolean(suppliedMetadata)) {
+    throw new Error('SVELIX_PACKAGE_TARBALL and SVELIX_PACKAGE_METADATA must be provided together');
+  }
+  const pack = suppliedTarball
+    ? packResult(readFileSync(resolve(suppliedMetadata), 'utf8'), 'svelix')
+    : packResult(execFileSync(npm, ['pack', '--json', '--pack-destination', fixture], {
+      cwd: root, encoding: 'utf8', shell: process.platform === 'win32'
+    }), 'svelix');
+  if (suppliedTarball) {
+    const tarballPath = resolve(suppliedTarball);
+    assert.equal(basename(tarballPath), pack.filename, 'supplied tarball must match npm pack metadata');
+    copyFileSync(tarballPath, join(fixture, pack.filename));
+  }
+  assert.equal(pack.name, 'svelix');
+  assert.equal(pack.version, '0.1.0');
+  assert.deepEqual(
+    pack.files.map((file) => file.path).sort(),
+    [...EXPECTED_PACKAGE_FILES].sort(),
+    'packed files must match the reviewed release allowlist'
+  );
+  // Verify the advertised peer floor, not only the locked development release.
+  const sveltePack = packResult(execFileSync(npm, [
+    'pack', 'svelte@5.59.0', '--json', '--pack-destination', fixture
+  ], { cwd: root, encoding: 'utf8', shell: process.platform === 'win32' }), 'svelte');
+  writeFileSync(join(fixture, 'package.json'), JSON.stringify({
+    name: 'svelix-consumer-fixture', version: '0.0.0', private: true, type: 'module',
+    dependencies: {
+      svelix: `file:${pack.filename}`,
+      svelte: `file:${sveltePack.filename}`
+    }
+  }));
+  execFileSync(npm, ['install', '--ignore-scripts', '--no-audit', '--no-fund'], {
+    cwd: fixture, stdio: 'inherit', shell: process.platform === 'win32'
+  });
+  const installedSvelte = JSON.parse(readFileSync(join(fixture, 'node_modules/svelte/package.json'), 'utf8'));
+  if (installedSvelte.version !== '5.59.0') {
+    throw new Error(`Expected consumer Svelte 5.59.0, got ${installedSvelte.version}`);
+  }
+  const installedPackageRoot = join(fixture, 'node_modules/svelix');
+  const installedSvelix = JSON.parse(readFileSync(join(installedPackageRoot, 'package.json'), 'utf8'));
+  assert.equal(installedSvelix.name, 'svelix');
+  assert.equal(installedSvelix.version, '0.1.0');
+  assert.equal(installedSvelix.description, 'A small, composable, native-first UI component library for Svelte 5.');
+  assert.equal(installedSvelix.author, 'Saku0512');
+  assert.equal(installedSvelix.license, 'MIT');
+  assert.equal(installedSvelix.repository?.url, 'git+https://github.com/Saku0512/Svelix.git');
+  assert.equal(installedSvelix.bugs?.url, 'https://github.com/Saku0512/Svelix/issues');
+  assert.equal(installedSvelix.homepage, 'https://github.com/Saku0512/Svelix#readme');
+  assert.equal(installedSvelix.publishConfig?.access, 'public');
+  assert.equal(installedSvelix.publishConfig?.registry, 'https://registry.npmjs.org/');
+  assert.deepEqual(installedSvelix.files, ['dist', 'README.md', 'LICENSE', 'CHANGELOG.md']);
+  assert.equal(installedSvelix.svelte, './dist/index.js');
+  assert.equal(installedSvelix.types, './dist/index.d.ts');
+  assert.deepEqual(Object.keys(installedSvelix.exports).sort(), ['.', './styles.css']);
+  assert.equal(installedSvelix.peerDependencies?.svelte, '^5.59.0');
+  assertPackedMarkdownLinksResolve(installedPackageRoot, 'README.md');
+  assertPackedMarkdownLinksResolve(installedPackageRoot, 'CHANGELOG.md');
+  writeFileSync(join(fixture, 'consumer.ts'), `import type { ComponentProps } from 'svelte';
+import { Button, Checkbox, Input, Label, Radio, RadioGroup, Separator } from 'svelix';
+
+const button: ComponentProps<typeof Button> = {
+  variant: 'outline',
+  type: 'submit',
+  formaction: '/save',
+  onclick: (event) => event.currentTarget.form?.checkValidity()
+};
+const input: ComponentProps<typeof Input> = {
+  type: 'email',
+  autocomplete: 'email',
+  readonly: true,
+  'aria-invalid': true,
+  oninput: (event) => event.currentTarget.checkValidity()
+};
+const checkbox: ComponentProps<typeof Input> = {
+  type: 'checkbox',
+  checked: true,
+  value: 'yes'
+};
+const radio: ComponentProps<typeof Input> = {
+  type: 'radio',
+  value: 'm',
+  group: 'm'
+};
+const unboundRadio: ComponentProps<typeof Input> = {
+  type: 'radio',
+  name: 'plain',
+  value: 'b',
+  checked: true
+};
+const checkboxGroup: ComponentProps<typeof Input> = {
+  type: 'checkbox',
+  value: 'rice',
+  group: ['rice']
+};
+const file: ComponentProps<typeof Input> = {
+  type: 'file',
+  files: undefined
+};
+const svelixCheckbox: ComponentProps<typeof Checkbox> = {
+  name: 'terms',
+  value: 'yes',
+  checked: false,
+  indeterminate: true,
+  defaultChecked: false,
+  onchange: (event) => event.currentTarget.checked
+};
+const svelixRadioGroup: ComponentProps<typeof RadioGroup> = {
+  legend: 'Billing plan',
+  name: 'plan',
+  value: 'pro',
+  disabled: false
+};
+const svelixEmptyRadioGroup: ComponentProps<typeof RadioGroup> = {
+  legend: 'Optional plan',
+  name: 'optional-plan',
+  value: null
+};
+const svelixRadio: ComponentProps<typeof Radio> = {
+  value: 'pro',
+  disabled: false,
+  onchange: (event) => event.currentTarget.value
+};
+const svelixLabel: ComponentProps<typeof Label> = {
+  for: 'email',
+  form: 'account-form',
+  onclick: (event) => event.currentTarget.htmlFor
+};
+const svelixSeparator: ComponentProps<typeof Separator> = {
+  id: 'main-divider',
+  orientation: 'vertical',
+  'aria-label': 'Divider'
+};
+const svelixDecorativeSeparator: ComponentProps<typeof Separator> = {
+  orientation: 'vertical',
+  decorative: true
+};
+const dynamicDecorativeFlag: boolean = false;
+const svelixDynamicDecorativeSeparator: ComponentProps<typeof Separator> = {
+  decorative: dynamicDecorativeFlag
+};
+// @ts-expect-error variants are intentionally limited
+const invalidButton: ComponentProps<typeof Button> = { variant: 'danger' };
+// @ts-expect-error native input elements cannot have children
+const invalidInput: ComponentProps<typeof Input> = { children: () => {} };
+// @ts-expect-error Checkbox fixes input type to checkbox
+const invalidCheckboxType: ComponentProps<typeof Checkbox> = { type: 'text' };
+// @ts-expect-error Checkbox cannot accept children
+const invalidCheckboxChildren: ComponentProps<typeof Checkbox> = { children: () => {} };
+// @ts-expect-error Radio fixes input type to radio
+const invalidRadioType: ComponentProps<typeof Radio> = { type: 'checkbox' };
+// @ts-expect-error Radio cannot accept children
+const invalidRadioChildren: ComponentProps<typeof Radio> = { children: () => {} };
+// @ts-expect-error RadioGroup value must be string | null | undefined
+const invalidRadioGroupValue: ComponentProps<typeof RadioGroup> = { value: 123 };
+// @ts-expect-error Separator orientation is limited to horizontal | vertical
+const invalidSeparatorOrientation: ComponentProps<typeof Separator> = { orientation: 'diagonal' };
+// @ts-expect-error Separator renders a void <hr> and cannot accept children
+const invalidSeparatorChildren: ComponentProps<typeof Separator> = { children: () => {} };
+// @ts-expect-error decorative Separator must remain non-focusable
+const invalidDecorativeTabindex: ComponentProps<typeof Separator> = { decorative: true, tabindex: 0 };
+// @ts-expect-error static Separator reserves tabindex
+const invalidSemanticTabindex: ComponentProps<typeof Separator> = { tabindex: 0 };
+// @ts-expect-error Separator owns aria-hidden through the decorative prop
+const invalidSeparatorAriaHidden: ComponentProps<typeof Separator> = { 'aria-hidden': 'true' };
+// @ts-expect-error Separator owns aria-orientation through the orientation prop
+const invalidSeparatorAriaOrientation: ComponentProps<typeof Separator> = { 'aria-orientation': 'vertical' };
+// @ts-expect-error Separator owns role semantics through <hr> and decorative
+const invalidSeparatorRole: ComponentProps<typeof Separator> = { role: 'presentation' };
+void [
+  button,
+  input,
+  checkbox,
+  radio,
+  unboundRadio,
+  checkboxGroup,
+  file,
+  svelixCheckbox,
+  svelixRadioGroup,
+  svelixEmptyRadioGroup,
+  svelixRadio,
+  svelixLabel,
+  svelixSeparator,
+  svelixDecorativeSeparator,
+  svelixDynamicDecorativeSeparator,
+  invalidButton,
+  invalidInput,
+  invalidCheckboxType,
+  invalidCheckboxChildren,
+  invalidRadioType,
+  invalidRadioChildren,
+  invalidRadioGroupValue,
+  invalidSeparatorOrientation,
+  invalidSeparatorChildren,
+  invalidDecorativeTabindex,
+  invalidSemanticTabindex,
+  invalidSeparatorAriaHidden,
+  invalidSeparatorAriaOrientation,
+  invalidSeparatorRole
+];
+`);
+  writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({
+    compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true, noEmit: true, skipLibCheck: true },
+    include: ['consumer.ts']
+  }));
+  execFileSync(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '-p', fixture], { stdio: 'inherit' });
+  writeFileSync(join(fixture, 'index.html'), '<div id="app"></div><script type="module" src="/main.js"></script>');
+  writeFileSync(join(fixture, 'main.js'), "import 'svelix';\nimport 'svelix/styles.css';\nimport App from './App.svelte';\nimport { mount } from 'svelte';\nmount(App, { target: document.getElementById('app') });\n");
+  writeFileSync(join(fixture, 'App.svelte'), `<script lang="ts">
+  import { Button, Checkbox, Input, Label, Radio, RadioGroup, Separator } from 'svelix';
+  let email = $state('');
+  let size = $state('m');
+  let toppings = $state<string[]>([]);
+  let terms = $state(false);
+  let mixed = $state(true);
+  let plan = $state<string | null>(null);
+</script>
+
+<form id="account-form">
+  <Label for="email">Email</Label>
+  <Input id="email" name="email" type="email" autocomplete="email" bind:value={email} required />
+  <Separator />
+  <Input type="radio" name="size" value="s" bind:group={size} />
+  <Input type="radio" name="size" value="m" bind:group={size} />
+  <Input type="checkbox" value="rice" bind:group={toppings} />
+  <Input type="radio" name="plain" value="b" checked />
+  <Label><Checkbox name="terms" value="yes" bind:checked={terms} bind:indeterminate={mixed} /> Terms</Label>
+  <Label><Checkbox name="updates" defaultChecked /> Updates</Label>
+  <RadioGroup legend="Plan" name="plan" bind:value={plan}>
+    <Label><Radio value="basic" /> Basic</Label>
+    <Label><Radio value="pro" disabled /> Pro</Label>
+  </RadioGroup>
+  <RadioGroup name="delivery">
+    {#snippet legend()}Delivery{/snippet}
+    <Label><Radio value="standard" defaultChecked /> Standard</Label>
+  </RadioGroup>
+  <Separator orientation="vertical" decorative />
+  <Button variant="outline">Submit</Button>
+</form>
+`);
+  await build({ root: fixture, configFile: false, plugins: [svelte()], build: { outDir: resolve(fixture, 'output') } });
+  console.log(`External Svelte ${installedSvelte.version} consumer build passed.`);
+} finally {
+  rmSync(fixture, { recursive: true, force: true });
+}

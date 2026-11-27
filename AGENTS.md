@@ -69,7 +69,7 @@ Before making changes:
 - Validate public inputs at appropriate boundaries.
 - Handle errors explicitly; do not silently swallow failures.
 - Keep modules focused and avoid premature generalization.
-- Add or update tests for behavior changes and regression fixes.
+- Add or update tests for behavior changes and regression fixes, following the `svelix-testing` skill (`.agents/skills/svelix-testing/SKILL.md`) for test design, browser fixtures, type/package checks, and acceptance evidence.
 - Run relevant formatting, lint, type-check, test, and build commands that are available in the repository.
 - Report commands that could not be run and why. Never claim checks passed unless they were actually run.
 
@@ -238,6 +238,10 @@ One commit, one purpose.
 - Do not combine unrelated changes merely because they belong to the same issue or PR.
 - Keep each commit independently understandable, reviewable, and reversible whenever practical. Make dependencies between commits explicit.
 - Prefer a buildable state with relevant passing tests at every commit. Do not knowingly leave broken intermediate commits in the final PR history. Document unavoidable exceptions and unavailable checks.
+- Split separate concerns. Examples are different token groups, a test harness and the cases that use it, documentation sections that explain different behavior, and dependency or configuration changes.
+- Treat a subject line that needs "and" to join two concerns as a signal to split the commit.
+- Keep tests, types, and documentation that specify the same change in that change's commit. Do not split one behavior into a file, its script, and its markup when those pieces have no independent meaning.
+- Do not collect a whole issue into one large commit. Each commit should pass the configured type check and production build.
 
 ### 2. Message format (Conventional Commits 1.0.0)
 
@@ -291,6 +295,7 @@ Each implementation commit may include its own necessary types, tests, and docum
 Avoid these patterns:
 
 - `feat: implement all basic UI components` when the components are independent: valid message format, but not an atomic change.
+- `feat(theme): add color tokens and browser tests` when the tokens and the tests are separate concerns.
 - `add button`: potentially atomic, but not a valid Conventional Commits message.
 - Separate commits for creating a component file, adding its script, and adding its markup when those steps have no independent value.
 
@@ -307,6 +312,12 @@ BREAKING CHANGE: remove the deprecated theme configuration
 Prefer merge commits to preserve meaningful atomic development commits and PR boundaries. Squash merge is acceptable only when the resulting commit represents one coherent logical change. Integration merge commits may combine multiple existing atomic commits without changing their boundaries; their single purpose is branch integration. Use a Conventional Commits-compliant message for merge and squash commits, including release PRs (for example, `chore(release): integrate v0.1.0`).
 
 Do not rewrite shared history or force-push shared branches to clean up commits. Follow the branch strategy and maintainer authorization rules.
+
+## Language policy
+
+- English is the primary language of this repository.
+- Write all code comments, JSDoc/TSDoc comments, documentation, commit messages, pull request descriptions, and test descriptions in English.
+- Keep repository artifacts in English even when conversing with the user in another language.
 
 ## Communication
 
