@@ -1,1 +1,9 @@
-/* Shared theme tokens will be added in the theme system work. */
+/* Shared tokens only. Importing this file does not style host elements. */
+:where(:root) {
+  --svelix-radius-sm: 0.25rem;
+  --svelix-radius-md: 0.5rem;
+  --svelix-spacing-xs: 0.25rem;
+  --svelix-spacing-sm: 0.5rem;
+  --svelix-spacing-md: 0.75rem;
+  --svelix-border-width: 1px;
+}
