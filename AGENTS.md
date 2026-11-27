@@ -110,28 +110,47 @@ Before making changes:
 
 ## Release tags and versioning
 
-Svelix uses a simple project-level release tag convention. Release tags are milestones for users and maintainers; do not silently substitute a different versioning policy.
+Svelix uses **Semantic Versioning 2.0.0 (SemVer)** for release tags and published package versions. Git tags and npm package versions MUST use the same `MAJOR.MINOR.PATCH` version.
 
-### Release progression
+### Version format
 
-- Use tags in the form `vMAJOR.MINOR`, for example `v1.0`, `v1.1`, and `v2.0`.
-- A major release milestone advances the major number: `v1.0` → `v2.0`. Use this for a substantial new product milestone or a release that intentionally introduces major changes.
-- A maintenance release advances the minor number within the current major line: `v1.0` → `v1.1`. Use this to group minor corrections, maintenance improvements, and security fixes that do not represent the next major product milestone.
-- Continue the same pattern for later releases, for example `v2.0` → `v2.1` → `v3.0`.
-- Do not create a release tag for every commit. A tag marks a reviewed, tested, releasable state.
+Use the format `MAJOR.MINOR.PATCH`, with a leading `v` for Git tags:
+
+- Git tag: `v1.2.3`
+- npm package version: `1.2.3`
+
+Do not use shortened tags such as `v1.0` or `v1.1`.
+
+### Version increments
+
+- **MAJOR** (`1.2.3` → `2.0.0`): introduce incompatible public API changes or other changes that require consumers to migrate.
+- **MINOR** (`1.2.3` → `1.3.0`): add functionality in a backwards-compatible manner.
+- **PATCH** (`1.2.3` → `1.2.4`): make backwards-compatible bug fixes, maintenance updates, and security fixes.
+
+During initial development, use `0.MINOR.PATCH` versions. The public API may change before `1.0.0`; increment the minor version for development milestones or backwards-incompatible changes, and the patch version for backwards-compatible fixes.
+
+### Pre-release versions
+
+Use SemVer pre-release identifiers when publishing or tagging test builds, for example:
+
+- `0.3.0-alpha.1`
+- `0.3.0-beta.1`
+- `0.3.0-rc.1`
+
+Do not use pre-release tags as stable releases.
 
 ### Release discipline
 
 - Create release tags only from the intended release commit on the default branch.
-- Before tagging, review the changes since the previous release and confirm relevant tests, type checks, linting, and production builds pass where configured.
+- The Git tag and package version MUST match, excluding the leading `v` on the Git tag.
+- Before tagging, review changes since the previous release and confirm relevant tests, type checks, linting, and production builds pass where configured.
 - Update release notes or a changelog with user-visible changes, fixes, security notes, and known limitations.
-- Never move or overwrite an existing release tag. If a release is defective, publish a new, incremented tag with a clear explanation.
+- Never move or overwrite an existing release tag. If a release is defective, publish a new, incremented version with a clear explanation.
 - Do not claim a security fix is complete until the fix and its regression test have been reviewed.
-- Do not create or push tags unless the maintainer explicitly requests the release action.
+- Do not create, push, or publish release tags or packages unless the maintainer explicitly requests the release action.
+- Do not invent version numbers. Determine the next version from the latest existing release and the actual compatibility impact of the changes.
 
-### SemVer distinction
-
-The `vMAJOR.MINOR` tags above are Svelix's simplified release-label convention, not a complete Semantic Versioning 2.0.0 version. If and when Svelix publishes packages to npm, package versions must use valid SemVer `MAJOR.MINOR.PATCH` values. Keep npm package versions and Git release tags intentionally mapped and document that mapping before the first package publication. Do not infer the mapping or invent patch numbers.
+Specification: https://semver.org/spec/v2.0.0.html
 
 ## Commit messages
 
