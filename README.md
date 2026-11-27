@@ -39,14 +39,14 @@ Button content normally provides its accessible name. Icon-only buttons must rec
 
 ### Input
 
-Input renders a native `<input>`, forwards native attributes and event callbacks, and applies the Svelte binding that matches the input type:
+Input renders a native `<input>`, forwards native attributes and event callbacks, and applies the Svelte binding that matches the input type. `type` matching is ASCII case-insensitive.
 
 | `type` | Binding |
 | --- | --- |
-| `checkbox` | `bind:checked` (optional HTML `value` for form submission) |
-| `radio` | `bind:group` shared across the radio set |
+| `checkbox` | `bind:checked` by default, or `bind:group` for checkbox groups (array). Optional HTML `value` for form submission. |
+| `radio` | native `checked` / `defaultChecked` when `group` is omitted; `bind:group` when grouping reactively (provide a non-`undefined` initial value such as `null` or a selected option) |
 | `file` | `bind:files` (`FileList`; leave unset initially; do not assign a path string) |
-| other | `bind:value` (supports `defaultValue` form reset on Svelte 5.6+) |
+| other | `bind:value` (supports `defaultValue` form reset) |
 
 ```svelte
 <script lang="ts">
@@ -56,6 +56,7 @@ Input renders a native `<input>`, forwards native attributes and event callbacks
   let email = $state('');
   let accepted = $state(false);
   let size = $state('m');
+  let toppings = $state([]);
   let uploads = $state();
 </script>
 
@@ -74,8 +75,20 @@ Input renders a native `<input>`, forwards native attributes and event callbacks
   Accept terms
 </label>
 
+<label><Input type="checkbox" value="rice" bind:group={toppings} /> Rice</label>
+<label><Input type="checkbox" value="beans" bind:group={toppings} /> Beans</label>
+
 <label><Input type="radio" name="size" value="s" bind:group={size} /> S</label>
 <label><Input type="radio" name="size" value="m" bind:group={size} /> M</label>
+
+<label>
+  <Input type="radio" name="plain" value="a" />
+  A
+</label>
+<label>
+  <Input type="radio" name="plain" value="b" checked />
+  B
+</label>
 
 <label for="upload">Upload</label>
 <Input id="upload" type="file" bind:files={uploads} />

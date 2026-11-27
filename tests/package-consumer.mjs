@@ -58,6 +58,17 @@ const radio: ComponentProps<typeof Input> = {
   value: 'm',
   group: 'm'
 };
+const unboundRadio: ComponentProps<typeof Input> = {
+  type: 'radio',
+  name: 'plain',
+  value: 'b',
+  checked: true
+};
+const checkboxGroup: ComponentProps<typeof Input> = {
+  type: 'checkbox',
+  value: 'rice',
+  group: ['rice']
+};
 const file: ComponentProps<typeof Input> = {
   type: 'file',
   files: undefined
@@ -66,7 +77,7 @@ const file: ComponentProps<typeof Input> = {
 const invalidButton: ComponentProps<typeof Button> = { variant: 'danger' };
 // @ts-expect-error native input elements cannot have children
 const invalidInput: ComponentProps<typeof Input> = { children: () => {} };
-void [button, input, checkbox, radio, file, invalidButton, invalidInput];
+void [button, input, checkbox, radio, unboundRadio, checkboxGroup, file, invalidButton, invalidInput];
 `);
   writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({
     compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true, noEmit: true, skipLibCheck: true },
@@ -78,11 +89,17 @@ void [button, input, checkbox, radio, file, invalidButton, invalidInput];
   writeFileSync(join(fixture, 'App.svelte'), `<script>
   import { Button, Input } from 'svelix';
   let email = $state('');
+  let size = $state('m');
+  let toppings = $state([]);
 </script>
 
 <form>
   <label for="email">Email</label>
   <Input id="email" name="email" type="email" autocomplete="email" bind:value={email} required />
+  <Input type="radio" name="size" value="s" bind:group={size} />
+  <Input type="radio" name="size" value="m" bind:group={size} />
+  <Input type="checkbox" value="rice" bind:group={toppings} />
+  <Input type="radio" name="plain" value="b" checked />
   <Button variant="outline">Submit</Button>
 </form>
 `);

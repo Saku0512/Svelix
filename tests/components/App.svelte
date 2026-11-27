@@ -8,6 +8,7 @@
   let boundValue = $state<string>();
   let accepted = $state(false);
   let size = $state('m');
+  let toppings = $state<string[]>([]);
   let uploads = $state<FileList | undefined>();
   let dynamicType = $state<'text' | 'checkbox'>('text');
   let dynamicText = $state('switchable');
@@ -61,8 +62,34 @@
       </label>
     </fieldset>
 
+    <fieldset>
+      <legend>Toppings</legend>
+      <label>
+        <Input id="topping-rice" type="checkbox" name="topping" value="rice" bind:group={toppings} />
+        Rice
+      </label>
+      <label>
+        <Input id="topping-beans" type="checkbox" name="topping" value="beans" bind:group={toppings} />
+        Beans
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Plain size</legend>
+      <label>
+        <Input id="plain-radio-a" type="radio" name="plain" value="a" />
+        A
+      </label>
+      <label>
+        <Input id="plain-radio-b" type="radio" name="plain" value="b" checked />
+        B
+      </label>
+    </fieldset>
+
     <label for="upload">Upload</label>
     <Input id="upload" name="upload" type="file" bind:files={uploads} />
+
+    <Input id="mixed-case-checkbox" type="CHECKBOX" aria-label="Mixed case checkbox" />
 
     <Button id="submit" name="intent" value="save">Save</Button>
     <Button id="no-submit" type="button" variant="secondary">No submit</Button>
@@ -81,11 +108,13 @@
 
   <Input id="custom-input" class="consumer-input" aria-label="Custom input" />
 
-  {#if dynamicType === 'text'}
-    <Input id="dynamic" aria-label="Dynamic input" type="text" bind:value={dynamicText} />
-  {:else}
-    <Input id="dynamic" aria-label="Dynamic input" type="checkbox" bind:checked={dynamicChecked} />
-  {/if}
+  <Input
+    id="dynamic"
+    aria-label="Dynamic input"
+    type={dynamicType}
+    bind:value={dynamicText}
+    bind:checked={dynamicChecked}
+  />
   <Button id="toggle-dynamic-type" type="button" onclick={() => {
     dynamicType = dynamicType === 'text' ? 'checkbox' : 'text';
   }}>Toggle dynamic type</Button>
@@ -100,8 +129,12 @@
   <output id="bound-value">{boundValue}</output>
   <output id="accepted-value">{String(accepted)}</output>
   <output id="size-value">{size}</output>
+  <output id="toppings-value">{toppings.join(',')}</output>
   <output id="upload-count">{uploads?.length ?? 0}</output>
+  <output id="upload-name">{uploads?.[0]?.name ?? ''}</output>
   <output id="dynamic-type">{dynamicType}</output>
+  <output id="dynamic-text">{dynamicText}</output>
+  <output id="dynamic-checked">{String(dynamicChecked)}</output>
 </section>
 
 <section data-svelix-theme="dark" id="dark-theme">

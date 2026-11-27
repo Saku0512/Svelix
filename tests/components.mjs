@@ -190,7 +190,11 @@ try {
       returnByValue: true,
       awaitPromise: true
     });
-    if (evaluated.exceptionDetails) throw new Error(evaluated.exceptionDetails.text || 'Page evaluation failed');
+    if (evaluated.exceptionDetails) {
+      const detail = evaluated.exceptionDetails;
+      const description = detail.exception?.description || detail.text || 'Page evaluation failed';
+      throw new Error(description);
+    }
     return evaluated.result.value;
   };
   const key = async (value, code, virtualKeyCode) => {
@@ -254,6 +258,9 @@ try {
         checkboxChecked: accepted.checked,
         radioS: document.getElementById('size-s').checked,
         radioM: document.getElementById('size-m').checked,
+        plainRadioA: document.getElementById('plain-radio-a').checked,
+        plainRadioB: document.getElementById('plain-radio-b').checked,
+        mixedCaseType: document.getElementById('mixed-case-checkbox').type,
         fileType: upload.type,
         fileValue: upload.value
       },
@@ -296,6 +303,7 @@ try {
     email: 'person@example.com',
     bound: 'initial',
     size: 'm',
+    plain: 'b',
     intent: 'save'
   });
   assert.deepEqual(details.email, {
@@ -316,6 +324,9 @@ try {
     checkboxChecked: false,
     radioS: false,
     radioM: true,
+    plainRadioA: false,
+    plainRadioB: true,
+    mixedCaseType: 'checkbox',
     fileType: 'file',
     fileValue: ''
   });
@@ -424,6 +435,57 @@ try {
     output: document.getElementById('size-value').value
   })`), { s: true, m: false, output: 's' });
 
+  await evaluate(`
+    document.getElementById('plain-radio-a').click();
+    Promise.resolve();
+  `);
+  assert.deepEqual(await evaluate(`({
+    a: document.getElementById('plain-radio-a').checked,
+    b: document.getElementById('plain-radio-b').checked,
+    form: Object.fromEntries(
+      [...new FormData(document.getElementById('native-form'))].filter(([name]) => name === 'plain')
+    )
+  })`), { a: true, b: false, form: { plain: 'a' } });
+  await evaluate(`document.getElementById('reset').click(); new Promise(requestAnimationFrame)`);
+  assert.deepEqual(await evaluate(`({
+    a: document.getElementById('plain-radio-a').checked,
+    b: document.getElementById('plain-radio-b').checked,
+    size: document.getElementById('size-value').value,
+    sizeS: document.getElementById('size-s').checked,
+    sizeM: document.getElementById('size-m').checked,
+    form: Object.fromEntries(
+      [...new FormData(document.getElementById('native-form'))].filter(([name]) =>
+        name === 'plain' || name === 'size'
+      )
+    )
+  })`), {
+    a: false,
+    b: true,
+    // Unbound radios restore native checked defaults; bind:group reset clears to null.
+    size: '',
+    sizeS: false,
+    sizeM: false,
+    form: { plain: 'b' }
+  });
+
+  await evaluate(`
+    document.getElementById('topping-rice').click();
+    Promise.resolve();
+  `);
+  assert.deepEqual(await evaluate(`({
+    rice: document.getElementById('topping-rice').checked,
+    output: document.getElementById('toppings-value').value
+  })`), { rice: true, output: 'rice' });
+  await evaluate(`
+    document.getElementById('topping-beans').click();
+    Promise.resolve();
+  `);
+  assert.deepEqual(await evaluate(`({
+    rice: document.getElementById('topping-rice').checked,
+    beans: document.getElementById('topping-beans').checked,
+    output: document.getElementById('toppings-value').value
+  })`), { rice: true, beans: true, output: 'rice,beans' });
+
   assert.equal(await evaluate(`document.getElementById('upload').value`), '');
   assert.equal(await evaluate(`document.getElementById('upload-count').value`), '0');
   assert.equal(
@@ -439,17 +501,52 @@ try {
     'InvalidStateError',
     'non-empty file values must remain unsettable'
   );
-  assert.equal(await evaluate(`document.getElementById('upload').value`), '');
+  await evaluate(`(() => {
+    const upload = document.getElementById('upload');
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(['hello'], 'hello.txt', { type: 'text/plain' }));
+    upload.files = transfer.files;
+    upload.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  assert.deepEqual(await evaluate(`({
+    count: document.getElementById('upload-count').value,
+    name: document.getElementById('upload-name').value,
+    files: document.getElementById('upload').files.length
+  })`), { count: '1', name: 'hello.txt', files: 1 });
+  await evaluate(`document.getElementById('reset').click(); new Promise(requestAnimationFrame)`);
+  assert.deepEqual(await evaluate(`({
+    count: document.getElementById('upload-count').value,
+    name: document.getElementById('upload-name').value,
+    files: document.getElementById('upload').files.length,
+    value: document.getElementById('upload').value
+  })`), { count: '0', name: '', files: 0, value: '' });
 
   assert.equal(await evaluate(`document.getElementById('dynamic').type`), 'text');
+  assert.equal(await evaluate(`document.getElementById('dynamic').value`), 'switchable');
   await evaluate(`document.getElementById('toggle-dynamic-type').click(); Promise.resolve()`);
   assert.deepEqual(await evaluate(`({
     type: document.getElementById('dynamic').type,
     mode: document.getElementById('dynamic-type').value,
-    checked: document.getElementById('dynamic').checked
-  })`), { type: 'checkbox', mode: 'checkbox', checked: false });
+    checked: document.getElementById('dynamic').checked,
+    checkedOutput: document.getElementById('dynamic-checked').value
+  })`), { type: 'checkbox', mode: 'checkbox', checked: false, checkedOutput: 'false' });
   await evaluate(`document.getElementById('dynamic').click(); Promise.resolve()`);
-  assert.equal(await evaluate(`document.getElementById('dynamic').checked`), true);
+  assert.deepEqual(await evaluate(`({
+    checked: document.getElementById('dynamic').checked,
+    checkedOutput: document.getElementById('dynamic-checked').value
+  })`), { checked: true, checkedOutput: 'true' });
+  await evaluate(`document.getElementById('toggle-dynamic-type').click(); Promise.resolve()`);
+  assert.deepEqual(await evaluate(`({
+    type: document.getElementById('dynamic').type,
+    mode: document.getElementById('dynamic-type').value,
+    value: document.getElementById('dynamic').value,
+    textOutput: document.getElementById('dynamic-text').value
+  })`), {
+    type: 'text',
+    mode: 'text',
+    value: 'switchable',
+    textOutput: 'switchable'
+  });
 
   console.log(`Component fixture passed in ${executable}.`);
 } finally {
