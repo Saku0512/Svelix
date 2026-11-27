@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import type { HTMLInputAttributes } from 'svelte/elements';
 
   type InputGroup = string | number | boolean | (string | number | boolean)[] | null;
@@ -23,25 +24,53 @@
     files = $bindable(),
     group = $bindable(GROUP_UNSET as unknown as InputGroup),
     defaultChecked,
+    onchange,
     ...rest
   }: InputProps = $props();
 
   const kind = $derived(String(type ?? 'text').toLowerCase());
   const usesGroup = $derived(group !== (GROUP_UNSET as unknown as InputGroup));
-  // When only `checked` is provided, mirror it to defaultChecked so form reset
-  // restores the native default instead of clearing the control.
-  const uncheckedDefault = $derived(defaultChecked ?? checked);
   const groupValues = $derived(Array.isArray(group) ? group : []);
   const checkedInGroup = $derived(groupValues.some((item) => item === value));
 
+  // Capture the reset baseline once. Do not derive it from the live checked/group
+  // state, or user interaction would rewrite the native default.
+  const snapshotDefaultChecked = untrack(() => {
+    if (defaultChecked !== undefined) return Boolean(defaultChecked);
+    if (group !== (GROUP_UNSET as unknown as InputGroup)) {
+      return Array.isArray(group) && group.some((item) => item === value);
+    }
+    return Boolean(checked);
+  });
+
   function syncCheckboxGroup(event: Event & { currentTarget: HTMLInputElement }) {
+    syncGroupMembershipFromDom(event.currentTarget);
+  }
+
+  function syncGroupMembershipFromDom(node: HTMLInputElement) {
     const option = value as string | number | boolean;
     const selected = Array.isArray(group) ? [...group] : [];
-    if (event.currentTarget.checked) {
-      group = selected.includes(option) ? selected : [...selected, option];
-      return;
-    }
-    group = selected.filter((item) => item !== option);
+    const has = selected.some((item) => item === option);
+    if (node.checked === has) return;
+    group = node.checked
+      ? [...selected, option]
+      : selected.filter((item) => item !== option);
+  }
+
+  function handleGroupedCheckboxChange(event: Event & { currentTarget: HTMLInputElement }) {
+    syncCheckboxGroup(event);
+    onchange?.(event);
+  }
+
+  function attachGroupedCheckboxReset(node: HTMLInputElement) {
+    const form = node.form;
+    if (!form) return;
+
+    const onReset = () => {
+      queueMicrotask(() => syncGroupMembershipFromDom(node));
+    };
+    form.addEventListener('reset', onReset);
+    return () => form.removeEventListener('reset', onReset);
   }
 </script>
 
@@ -56,28 +85,37 @@
       type="checkbox"
       {value}
       checked={checkedInGroup}
-      defaultChecked={checkedInGroup}
-      onchange={syncCheckboxGroup}
+      defaultChecked={snapshotDefaultChecked}
+      onchange={handleGroupedCheckboxChange}
+      {@attach attachGroupedCheckboxReset}
     />
   {:else}
-    <input {...rest} type="checkbox" bind:checked {value} defaultChecked={uncheckedDefault} />
+    <input
+      {...rest}
+      type="checkbox"
+      bind:checked
+      {value}
+      defaultChecked={snapshotDefaultChecked}
+      {onchange}
+    />
   {/if}
 {:else if kind === 'radio'}
   {#if usesGroup}
-    <input {...rest} type="radio" bind:group={group} {value} />
+    <input {...rest} type="radio" bind:group={group} {value} {onchange} />
   {:else}
     <input
       {...rest}
       type="radio"
       {value}
       checked={checked}
-      defaultChecked={uncheckedDefault}
+      defaultChecked={snapshotDefaultChecked}
+      {onchange}
     />
   {/if}
 {:else if kind === 'file'}
-  <input {...rest} type="file" bind:files />
+  <input {...rest} type="file" bind:files {onchange} />
 {:else}
-  <input {...rest} {type} bind:value />
+  <input {...rest} {type} bind:value {onchange} />
 {/if}
 
 <style>

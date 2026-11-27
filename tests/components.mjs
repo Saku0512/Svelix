@@ -468,14 +468,21 @@ try {
     form: { plain: 'b' }
   });
 
-  await evaluate(`
-    document.getElementById('topping-rice').click();
-    Promise.resolve();
-  `);
+  // The earlier form reset restores rice via defaultChecked and syncs bind:group.
   assert.deepEqual(await evaluate(`({
     rice: document.getElementById('topping-rice').checked,
+    beans: document.getElementById('topping-beans').checked,
+    riceDefault: document.getElementById('topping-rice').defaultChecked,
+    beansDefault: document.getElementById('topping-beans').defaultChecked,
     output: document.getElementById('toppings-value').value
-  })`), { rice: true, output: 'rice' });
+  })`), {
+    rice: true,
+    beans: false,
+    riceDefault: true,
+    beansDefault: false,
+    output: 'rice'
+  });
+
   await evaluate(`
     document.getElementById('topping-beans').click();
     Promise.resolve();
@@ -483,8 +490,33 @@ try {
   assert.deepEqual(await evaluate(`({
     rice: document.getElementById('topping-rice').checked,
     beans: document.getElementById('topping-beans').checked,
-    output: document.getElementById('toppings-value').value
-  })`), { rice: true, beans: true, output: 'rice,beans' });
+    output: document.getElementById('toppings-value').value,
+    changes: document.getElementById('topping-changes').value,
+    riceDefault: document.getElementById('topping-rice').defaultChecked,
+    beansDefault: document.getElementById('topping-beans').defaultChecked
+  })`), {
+    rice: true,
+    beans: true,
+    output: 'rice,beans',
+    changes: '1',
+    riceDefault: true,
+    beansDefault: false
+  });
+  await evaluate(`
+    document.getElementById('topping-rice').click();
+    Promise.resolve();
+  `);
+  assert.deepEqual(await evaluate(`({
+    rice: document.getElementById('topping-rice').checked,
+    beans: document.getElementById('topping-beans').checked,
+    output: document.getElementById('toppings-value').value,
+    changes: document.getElementById('topping-changes').value
+  })`), {
+    rice: false,
+    beans: true,
+    output: 'beans',
+    changes: '2'
+  });
 
   assert.equal(await evaluate(`document.getElementById('upload').value`), '');
   assert.equal(await evaluate(`document.getElementById('upload-count').value`), '0');
@@ -518,9 +550,33 @@ try {
     count: document.getElementById('upload-count').value,
     name: document.getElementById('upload-name').value,
     files: document.getElementById('upload').files.length,
-    value: document.getElementById('upload').value
-  })`), { count: '0', name: '', files: 0, value: '' });
-
+    value: document.getElementById('upload').value,
+    accepted: document.getElementById('accepted').checked,
+    acceptedOutput: document.getElementById('accepted-value').value,
+    rice: document.getElementById('topping-rice').checked,
+    beans: document.getElementById('topping-beans').checked,
+    riceDefault: document.getElementById('topping-rice').defaultChecked,
+    beansDefault: document.getElementById('topping-beans').defaultChecked,
+    toppings: document.getElementById('toppings-value').value,
+    form: Object.fromEntries(
+      [...new FormData(document.getElementById('native-form'))].filter(([name]) =>
+        name === 'topping' || name === 'accepted'
+      )
+    )
+  })`), {
+    count: '0',
+    name: '',
+    files: 0,
+    value: '',
+    accepted: false,
+    acceptedOutput: 'false',
+    rice: true,
+    beans: false,
+    riceDefault: true,
+    beansDefault: false,
+    toppings: 'rice',
+    form: { topping: 'rice' }
+  });
   assert.equal(await evaluate(`document.getElementById('dynamic').type`), 'text');
   assert.equal(await evaluate(`document.getElementById('dynamic').value`), 'switchable');
   await evaluate(`document.getElementById('toggle-dynamic-type').click(); Promise.resolve()`);

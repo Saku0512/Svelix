@@ -9,6 +9,7 @@
   let accepted = $state(false);
   let size = $state('m');
   let toppings = $state<string[]>([]);
+  let toppingChanges = $state(0);
   let uploads = $state<FileList | undefined>();
   let dynamicType = $state<'text' | 'checkbox'>('text');
   let dynamicText = $state('switchable');
@@ -65,11 +66,26 @@
     <fieldset>
       <legend>Toppings</legend>
       <label>
-        <Input id="topping-rice" type="checkbox" name="topping" value="rice" bind:group={toppings} />
+        <Input
+          id="topping-rice"
+          type="checkbox"
+          name="topping"
+          value="rice"
+          bind:group={toppings}
+          defaultChecked={true}
+          onchange={() => (toppingChanges += 1)}
+        />
         Rice
       </label>
       <label>
-        <Input id="topping-beans" type="checkbox" name="topping" value="beans" bind:group={toppings} />
+        <Input
+          id="topping-beans"
+          type="checkbox"
+          name="topping"
+          value="beans"
+          bind:group={toppings}
+          onchange={() => (toppingChanges += 1)}
+        />
         Beans
       </label>
     </fieldset>
@@ -130,6 +146,7 @@
   <output id="accepted-value">{String(accepted)}</output>
   <output id="size-value">{size}</output>
   <output id="toppings-value">{toppings.join(',')}</output>
+  <output id="topping-changes">{toppingChanges}</output>
   <output id="upload-count">{uploads?.length ?? 0}</output>
   <output id="upload-name">{uploads?.[0]?.name ?? ''}</output>
   <output id="dynamic-type">{dynamicType}</output>
