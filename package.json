@@ -20,7 +20,8 @@
   "scripts": {
     "build": "svelte-package",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test:package": "node tests/package-consumer.mjs"
+    "test:package": "node tests/package-consumer.mjs",
+    "test:package:clean": "node tests/package-clean.mjs"
   },
   "peerDependencies": {
     "svelte": "^5.0.0"
