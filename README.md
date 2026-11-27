@@ -11,7 +11,76 @@ Run `npm run test:package:clean` for a clean install and repeat-build comparison
 
 Run `npm run test:theme` to check the theme fixture in headless Chromium. It needs a local Chrome or Chromium binary and does not add a browser package. Set `CHROME_PATH` when the binary is not `google-chrome` on `PATH`. Set `THEME_SCREENSHOT_DIR` to write light and dark PNG captures of the fixture.
 
-The package exposes its shared CSS as `svelix/styles.css`. UI components are under development.
+Run `npm run test:components` to build the Button and Input browser fixture and verify native form, keyboard, disabled, validation, binding, styling, and scoped-style behavior in headless Chromium. It uses the same `CHROME_PATH` override and adds no browser dependency.
+
+The package exposes Button and Input from `svelix`, and its shared CSS from `svelix/styles.css`.
+
+## Components
+
+Import the shared stylesheet once in the application, then import components from the package entry point.
+
+### Button
+
+Button renders a native `<button>` and forwards native button attributes and event callbacks. It does not supply a `type`, so the browser default remains `submit` inside a form. Set `type="button"` for non-submit actions. The available variants are `primary` (default), `secondary`, `outline`, and `ghost`.
+
+```svelte
+<script lang="ts">
+  import { Button } from 'svelix';
+  import 'svelix/styles.css';
+</script>
+
+<form action="/profile" method="post">
+  <Button name="intent" value="save">Save profile</Button>
+  <Button type="button" variant="ghost" onclick={() => history.back()}>Cancel</Button>
+</form>
+```
+
+Button content normally provides its accessible name. Icon-only buttons must receive a native naming attribute such as `aria-label`. Disabled buttons use the native `disabled` attribute; no loading behavior is simulated.
+
+### Input
+
+Input renders a native `<input>`, forwards native attributes and event callbacks, and supports `bind:value`. Native input types, constraints, autofill, readonly, disabled, and form reset behavior remain available through their standard attributes.
+
+```svelte
+<script lang="ts">
+  import { Input } from 'svelix';
+  import 'svelix/styles.css';
+
+  let email = $state('');
+</script>
+
+<label for="email">Email address</label>
+<Input
+  id="email"
+  name="email"
+  type="email"
+  autocomplete="email"
+  bind:value={email}
+  required
+/>
+```
+
+Use a visible `<label>` associated with `for` and `id`; a placeholder is not a label. Native constraint failures receive invalid styling after user interaction through `:user-invalid`. For custom or server-side validation, set `aria-invalid="true"` and associate visible error text with `aria-describedby`. Svelix does not add validation timing, messages, or submission logic.
+
+### Component styling
+
+Button and Input styles are scoped and consume the shared tokens documented below. Override a token on a component class to customize one instance, or set ordinary CSS properties on that class. Component rules use zero-specificity `:where(...)` selectors so a consumer class can override defaults without `!important`.
+
+```svelte
+<Button class="confirm">Confirm</Button>
+<Input class="account-field" aria-label="Account code" />
+
+<style>
+  :global(.confirm) {
+    --svelix-primary: #047857;
+    --svelix-primary-foreground: #ffffff;
+  }
+
+  :global(.account-field) {
+    border-radius: 0;
+  }
+</style>
+```
 
 ## Theme
 
