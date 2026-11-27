@@ -7,3 +7,17 @@
   --svelix-spacing-md: 0.75rem;
   --svelix-border-width: 1px;
 }
+
+/* Light is the default. */
+:where(:root, [data-svelix-theme="light"]) {
+  --svelix-background: #ffffff;
+  --svelix-foreground: #0f172a;
+  --svelix-primary: #1d4ed8;
+  --svelix-primary-foreground: #ffffff;
+  --svelix-secondary: #e2e8f0;
+  --svelix-secondary-foreground: #0f172a;
+  --svelix-muted: #f1f5f9;
+  --svelix-muted-foreground: #475569;
+  --svelix-border: #64748b;
+  --svelix-danger: #b91c1c;
+}
