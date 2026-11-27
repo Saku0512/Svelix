@@ -20,6 +20,12 @@ try {
   execFileSync(npm, ['install', '--ignore-scripts', '--offline', '--no-audit', '--no-fund'], {
     cwd: fixture, stdio: 'inherit', shell: process.platform === 'win32'
   });
+  writeFileSync(join(fixture, 'consumer.ts'), "import * as library from 'svelix';\nvoid library;\n");
+  writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({
+    compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true, noEmit: true, skipLibCheck: true },
+    include: ['consumer.ts']
+  }));
+  execFileSync(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '-p', fixture], { stdio: 'inherit' });
   writeFileSync(join(fixture, 'index.html'), '<div id="app"></div><script type="module" src="/main.js"></script>');
   writeFileSync(join(fixture, 'main.js'), "import 'svelix';\nimport 'svelix/styles.css';\nimport App from './App.svelte';\nimport { mount } from 'svelte';\nmount(App, { target: document.getElementById('app') });\n");
   writeFileSync(join(fixture, 'App.svelte'), '<h1>Svelix consumer</h1>\n');
