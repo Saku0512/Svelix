@@ -1,12 +1,32 @@
 <script lang="ts">
   import type { HTMLInputAttributes } from 'svelte/elements';
 
-  type InputProps = Omit<HTMLInputAttributes, 'children'>;
+  type InputGroup = string | number | boolean | (string | number | boolean)[] | null;
 
-  let { value = $bindable(), ...rest }: InputProps = $props();
+  type InputProps = Omit<HTMLInputAttributes, 'children'> & {
+    /** Svelte radio/checkbox group binding. Not an HTML attribute. */
+    group?: InputGroup;
+  };
+
+  let {
+    type = 'text',
+    value = $bindable(),
+    checked = $bindable(),
+    files = $bindable(),
+    group = $bindable(),
+    ...rest
+  }: InputProps = $props();
 </script>
 
-<input {...rest} bind:value />
+{#if type === 'checkbox'}
+  <input {...rest} type="checkbox" bind:checked {value} />
+{:else if type === 'radio'}
+  <input {...rest} type="radio" bind:group={group} {value} />
+{:else if type === 'file'}
+  <input {...rest} type="file" bind:files />
+{:else}
+  <input {...rest} {type} bind:value />
+{/if}
 
 <style>
   :where(input) {
@@ -15,6 +35,10 @@
     font: inherit;
     font-size: max(1rem, 1em);
     color: var(--svelix-foreground);
+  }
+
+  :where(input:is([type='checkbox'], [type='radio'])) {
+    accent-color: var(--svelix-primary);
   }
 
   :where(

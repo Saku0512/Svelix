@@ -39,7 +39,14 @@ Button content normally provides its accessible name. Icon-only buttons must rec
 
 ### Input
 
-Input renders a native `<input>`, forwards native attributes and event callbacks, and supports `bind:value`. Native input types, constraints, autofill, readonly, disabled, and form reset behavior remain available through their standard attributes.
+Input renders a native `<input>`, forwards native attributes and event callbacks, and applies the Svelte binding that matches the input type:
+
+| `type` | Binding |
+| --- | --- |
+| `checkbox` | `bind:checked` (optional HTML `value` for form submission) |
+| `radio` | `bind:group` shared across the radio set |
+| `file` | `bind:files` (`FileList`; leave unset initially; do not assign a path string) |
+| other | `bind:value` (supports `defaultValue` form reset on Svelte 5.6+) |
 
 ```svelte
 <script lang="ts">
@@ -47,6 +54,9 @@ Input renders a native `<input>`, forwards native attributes and event callbacks
   import 'svelix/styles.css';
 
   let email = $state('');
+  let accepted = $state(false);
+  let size = $state('m');
+  let uploads = $state();
 </script>
 
 <label for="email">Email address</label>
@@ -58,9 +68,20 @@ Input renders a native `<input>`, forwards native attributes and event callbacks
   bind:value={email}
   required
 />
+
+<label>
+  <Input type="checkbox" bind:checked={accepted} value="yes" />
+  Accept terms
+</label>
+
+<label><Input type="radio" name="size" value="s" bind:group={size} /> S</label>
+<label><Input type="radio" name="size" value="m" bind:group={size} /> M</label>
+
+<label for="upload">Upload</label>
+<Input id="upload" type="file" bind:files={uploads} />
 ```
 
-Use a visible `<label>` associated with `for` and `id`; a placeholder is not a label. Native constraint failures receive invalid styling after user interaction through `:user-invalid`. For custom or server-side validation, set `aria-invalid="true"` and associate visible error text with `aria-describedby`. Svelix does not add validation timing, messages, or submission logic.
+Use a visible `<label>` associated with `for` and `id`; a placeholder is not a label. Native constraint failures receive invalid styling after user interaction through `:user-invalid`. For custom or server-side validation, set `aria-invalid="true"` and associate visible error text with `aria-describedby`. Svelix does not add validation timing, messages, or submission logic. Checkbox and radio controls use `accent-color` from the shared primary token.
 
 ### Component styling
 

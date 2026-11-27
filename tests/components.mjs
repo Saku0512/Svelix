@@ -34,12 +34,14 @@ function findChrome() {
   throw new Error('Chrome or Chromium was not found. Set CHROME_PATH to a browser binary.');
 }
 
+
 let chromeLog = '';
 const pending = new Map();
 let server;
 let chrome;
 let socket;
 let messageId = 0;
+
 
 try {
   await build({
@@ -153,6 +155,8 @@ try {
     const email = document.getElementById('email');
     const invalid = document.getElementById('invalid');
     const nativeInvalid = document.getElementById('native-invalid');
+    const accepted = document.getElementById('accepted');
+    const upload = document.getElementById('upload');
     return {
       buttonTag: document.getElementById('keyboard').tagName,
       inputTag: email.tagName,
@@ -162,10 +166,12 @@ try {
       variants: ['keyboard', 'secondary', 'outline', 'ghost'].map((id) =>
         document.getElementById(id).dataset.svelixVariant
       ),
-      formData: Object.fromEntries(new FormData(
-        document.getElementById('native-form'),
-        document.getElementById('submit')
-      )),
+      formData: Object.fromEntries(
+        [...new FormData(
+          document.getElementById('native-form'),
+          document.getElementById('submit')
+        )].filter(([name]) => name !== 'upload')
+      ),
       email: {
         type: email.type,
         name: email.name,
@@ -177,6 +183,15 @@ try {
         ariaInvalid: invalid.getAttribute('aria-invalid'),
         describedBy: invalid.getAttribute('aria-describedby'),
         nativeConstraint: nativeInvalid.validity.patternMismatch
+      },
+      specialTypes: {
+        checkboxType: accepted.type,
+        checkboxValue: accepted.value,
+        checkboxChecked: accepted.checked,
+        radioS: document.getElementById('size-s').checked,
+        radioM: document.getElementById('size-m').checked,
+        fileType: upload.type,
+        fileValue: upload.value
       },
       styles: {
         primary: style('keyboard').backgroundColor,
@@ -192,7 +207,13 @@ try {
         buttonMinBlockSize: style('keyboard').minBlockSize,
         inputMinBlockSize: style('email').minBlockSize,
         plainButtonMinBlockSize: style('plain-button').minBlockSize,
-        plainInputMinBlockSize: style('plain-input').minBlockSize
+        plainInputMinBlockSize: style('plain-input').minBlockSize,
+        checkboxAccent: style('accepted').accentColor,
+        radioAccent: style('size-m').accentColor,
+        darkPrimary: style('dark-primary').backgroundColor,
+        darkEmailBg: style('dark-email').backgroundColor,
+        darkEmailFg: style('dark-email').color,
+        darkCheckboxAccent: style('dark-checkbox').accentColor
       },
       bound: {
         input: document.getElementById('bound').value,
@@ -210,6 +231,7 @@ try {
   assert.deepEqual(details.formData, {
     email: 'person@example.com',
     bound: 'initial',
+    size: 'm',
     intent: 'save'
   });
   assert.deepEqual(details.email, {
@@ -223,6 +245,15 @@ try {
     ariaInvalid: 'true',
     describedBy: 'invalid-error',
     nativeConstraint: true
+  });
+  assert.deepEqual(details.specialTypes, {
+    checkboxType: 'checkbox',
+    checkboxValue: 'yes',
+    checkboxChecked: false,
+    radioS: false,
+    radioM: true,
+    fileType: 'file',
+    fileValue: ''
   });
   assert.equal(details.styles.primary, 'rgb(29, 78, 216)');
   assert.equal(details.styles.secondary, 'rgb(226, 232, 240)');
@@ -238,6 +269,12 @@ try {
   assert.equal(details.styles.inputMinBlockSize, '48px');
   assert.notEqual(details.styles.plainButtonMinBlockSize, '48px');
   assert.notEqual(details.styles.plainInputMinBlockSize, '48px');
+  assert.equal(details.styles.checkboxAccent, 'rgb(29, 78, 216)');
+  assert.equal(details.styles.radioAccent, 'rgb(29, 78, 216)');
+  assert.equal(details.styles.darkPrimary, 'rgb(147, 197, 253)');
+  assert.equal(details.styles.darkEmailBg, 'rgb(15, 23, 42)');
+  assert.equal(details.styles.darkEmailFg, 'rgb(248, 250, 252)');
+  assert.equal(details.styles.darkCheckboxAccent, 'rgb(147, 197, 253)');
   assert.deepEqual(details.bound, { input: 'initial', output: 'initial' });
 
   await evaluate(`(() => {
@@ -302,6 +339,53 @@ try {
     input: document.getElementById('bound').value,
     output: document.getElementById('bound-value').value
   })`), { input: 'initial', output: 'initial' });
+
+  await evaluate(`
+    const checkbox = document.getElementById('accepted');
+    checkbox.click();
+    Promise.resolve();
+  `);
+  assert.deepEqual(await evaluate(`({
+    checked: document.getElementById('accepted').checked,
+    output: document.getElementById('accepted-value').value
+  })`), { checked: true, output: 'true' });
+
+  await evaluate(`
+    document.getElementById('size-s').click();
+    Promise.resolve();
+  `);
+  assert.deepEqual(await evaluate(`({
+    s: document.getElementById('size-s').checked,
+    m: document.getElementById('size-m').checked,
+    output: document.getElementById('size-value').value
+  })`), { s: true, m: false, output: 's' });
+
+  assert.equal(await evaluate(`document.getElementById('upload').value`), '');
+  assert.equal(await evaluate(`document.getElementById('upload-count').value`), '0');
+  assert.equal(
+    await evaluate(`{
+      const input = document.getElementById('upload');
+      try {
+        input.value = 'C:\\\\fake\\\\path.txt';
+        'assigned';
+      } catch (error) {
+        error.name;
+      }
+    }`),
+    'InvalidStateError',
+    'non-empty file values must remain unsettable'
+  );
+  assert.equal(await evaluate(`document.getElementById('upload').value`), '');
+
+  assert.equal(await evaluate(`document.getElementById('dynamic').type`), 'text');
+  await evaluate(`document.getElementById('toggle-dynamic-type').click(); Promise.resolve()`);
+  assert.deepEqual(await evaluate(`({
+    type: document.getElementById('dynamic').type,
+    mode: document.getElementById('dynamic-type').value,
+    checked: document.getElementById('dynamic').checked
+  })`), { type: 'checkbox', mode: 'checkbox', checked: false });
+  await evaluate(`document.getElementById('dynamic').click(); Promise.resolve()`);
+  assert.equal(await evaluate(`document.getElementById('dynamic').checked`), true);
 
   console.log(`Component fixture passed in ${executable}.`);
 } finally {

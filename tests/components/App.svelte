@@ -6,12 +6,12 @@
   let submissions = $state(0);
   let lastSubmitter = $state('');
   let boundValue = $state<string>();
-
-  function handleSubmit(event: SubmitEvent & { currentTarget: HTMLFormElement }) {
-    event.preventDefault();
-    submissions += 1;
-    lastSubmitter = event.submitter?.id ?? '';
-  }
+  let accepted = $state(false);
+  let size = $state('m');
+  let uploads = $state<FileList | undefined>();
+  let dynamicType = $state<'text' | 'checkbox'>('text');
+  let dynamicText = $state('switchable');
+  let dynamicChecked = $state(false);
 </script>
 
 <section data-svelix-theme="light">
@@ -26,7 +26,11 @@
   <Button id="ghost" variant="ghost">Ghost</Button>
   <Button id="custom-button" class="consumer-button">Custom</Button>
 
-  <form id="native-form" onsubmit={handleSubmit}>
+  <form id="native-form" onsubmit={(event) => {
+    event.preventDefault();
+    submissions += 1;
+    lastSubmitter = event.submitter?.id ?? '';
+  }}>
     <label for="email">Email address</label>
     <Input
       id="email"
@@ -39,6 +43,26 @@
 
     <label for="bound">Bound value</label>
     <Input id="bound" name="bound" bind:value={boundValue} defaultValue="initial" />
+
+    <label>
+      <Input id="accepted" name="accepted" type="checkbox" bind:checked={accepted} value="yes" />
+      Accept terms
+    </label>
+
+    <fieldset>
+      <legend>Size</legend>
+      <label>
+        <Input id="size-s" type="radio" name="size" value="s" bind:group={size} />
+        S
+      </label>
+      <label>
+        <Input id="size-m" type="radio" name="size" value="m" bind:group={size} />
+        M
+      </label>
+    </fieldset>
+
+    <label for="upload">Upload</label>
+    <Input id="upload" name="upload" type="file" bind:files={uploads} />
 
     <Button id="submit" name="intent" value="save">Save</Button>
     <Button id="no-submit" type="button" variant="secondary">No submit</Button>
@@ -57,6 +81,15 @@
 
   <Input id="custom-input" class="consumer-input" aria-label="Custom input" />
 
+  {#if dynamicType === 'text'}
+    <Input id="dynamic" aria-label="Dynamic input" type="text" bind:value={dynamicText} />
+  {:else}
+    <Input id="dynamic" aria-label="Dynamic input" type="checkbox" bind:checked={dynamicChecked} />
+  {/if}
+  <Button id="toggle-dynamic-type" type="button" onclick={() => {
+    dynamicType = dynamicType === 'text' ? 'checkbox' : 'text';
+  }}>Toggle dynamic type</Button>
+
   <button id="plain-button">Plain button</button>
   <input id="plain-input" aria-label="Plain input" />
 
@@ -65,6 +98,16 @@
   <output id="submission-count">{submissions}</output>
   <output id="last-submitter">{lastSubmitter}</output>
   <output id="bound-value">{boundValue}</output>
+  <output id="accepted-value">{String(accepted)}</output>
+  <output id="size-value">{size}</output>
+  <output id="upload-count">{uploads?.length ?? 0}</output>
+  <output id="dynamic-type">{dynamicType}</output>
+</section>
+
+<section data-svelix-theme="dark" id="dark-theme">
+  <Button id="dark-primary">Dark primary</Button>
+  <Input id="dark-email" type="email" aria-label="Dark email" value="dark@example.com" />
+  <Input id="dark-checkbox" type="checkbox" aria-label="Dark checkbox" checked />
 </section>
 
 <style>

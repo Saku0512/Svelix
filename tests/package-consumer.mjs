@@ -48,11 +48,25 @@ const input: ComponentProps<typeof Input> = {
   'aria-invalid': true,
   oninput: (event) => event.currentTarget.checkValidity()
 };
+const checkbox: ComponentProps<typeof Input> = {
+  type: 'checkbox',
+  checked: true,
+  value: 'yes'
+};
+const radio: ComponentProps<typeof Input> = {
+  type: 'radio',
+  value: 'm',
+  group: 'm'
+};
+const file: ComponentProps<typeof Input> = {
+  type: 'file',
+  files: undefined
+};
 // @ts-expect-error variants are intentionally limited
 const invalidButton: ComponentProps<typeof Button> = { variant: 'danger' };
 // @ts-expect-error native input elements cannot have children
 const invalidInput: ComponentProps<typeof Input> = { children: () => {} };
-void [button, input, invalidButton, invalidInput];
+void [button, input, checkbox, radio, file, invalidButton, invalidInput];
 `);
   writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({
     compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true, noEmit: true, skipLibCheck: true },
