@@ -4,8 +4,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { build } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { ensureFreshDist } from './ensure-fresh-dist.mjs';
 
 const root = process.cwd();
+ensureFreshDist(root);
 const fixture = mkdtempSync(join(tmpdir(), 'svelix-consumer-'));
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const packResult = (output, name) => {

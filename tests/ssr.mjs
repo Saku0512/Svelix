@@ -11,6 +11,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { ensureFreshDist } from './ensure-fresh-dist.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const workDir = mkdtempSync(join(tmpdir(), 'svelix-ssr-work-'));
@@ -55,10 +56,7 @@ function killBrowser(proc) {
   }
 }
 
-if (!existsSync(join(root, 'dist/index.js'))) {
-  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  execFileSync(npm, ['run', 'build'], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
-}
+ensureFreshDist(root);
 
 let server;
 let chrome;
