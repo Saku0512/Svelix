@@ -22,22 +22,34 @@
     groupContext = undefined;
   }
 
-  const resolvedName = $derived(name ?? groupContext?.getName());
+  // Inside a RadioGroup, always use the group's name so native mutual exclusion
+  // cannot diverge from the shared controlled model.
+  const resolvedName = $derived(groupContext ? groupContext.getName() : name);
   const usesGroupValue = $derived(Boolean(groupContext?.isControlled()));
-  const stringValue = $derived(value === undefined || value === null ? '' : String(value));
-  const isChecked = $derived(usesGroupValue ? groupContext?.getValue() === stringValue : checked);
+  // Native radio inputs default their DOM value and FormData payload to "on" when omitted.
+  const resolvedValue = $derived(value === undefined || value === null ? 'on' : String(value));
+  const isChecked = $derived(usesGroupValue ? groupContext?.getValue() === resolvedValue : checked);
 
   const snapshotDefaultChecked = untrack(() => {
     if (defaultChecked !== undefined) return Boolean(defaultChecked);
     if (groupContext?.isControlled()) {
-      return groupContext.getInitialValue() === stringValue;
+      return groupContext.getInitialValue() === resolvedValue;
     }
     return checked !== undefined ? Boolean(checked) : undefined;
   });
 
+  function attachGroupRegistration(node: HTMLInputElement) {
+    if (!groupContext) return;
+    return groupContext.registerRadio({
+      node,
+      getValue: () => resolvedValue,
+      getDefaultChecked: () => Boolean(snapshotDefaultChecked)
+    });
+  }
+
   function handleChange(event: Event & { currentTarget: HTMLInputElement }) {
     if (usesGroupValue && event.currentTarget.checked) {
-      groupContext?.setValue(stringValue);
+      groupContext?.setValue(resolvedValue);
     }
     onchange?.(event);
   }
@@ -52,6 +64,7 @@
     checked={isChecked}
     defaultChecked={snapshotDefaultChecked}
     onchange={handleChange}
+    {@attach attachGroupRegistration}
   />
 {:else if checked !== undefined}
   <input
@@ -62,6 +75,7 @@
     {checked}
     defaultChecked={snapshotDefaultChecked}
     {onchange}
+    {@attach attachGroupRegistration}
   />
 {:else}
   <input
@@ -71,6 +85,7 @@
     {value}
     {defaultChecked}
     {onchange}
+    {@attach attachGroupRegistration}
   />
 {/if}
 

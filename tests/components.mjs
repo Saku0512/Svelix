@@ -976,7 +976,9 @@ try {
   assert.deepEqual(selectionInitial.formData, {
     'cb-uncontrolled': 'on',
     plan: 'pro',
-    delivery: 'standard'
+    delivery: 'standard',
+    [await evaluate(`document.getElementById('rg-unnamed-first').name`)]: 'first',
+    'default-val': 'custom'
   });
   assert.equal(selectionInitial.styles.cbAccent, 'rgb(29, 78, 216)');
   assert.notEqual(selectionInitial.styles.plainCbAccent, 'rgb(29, 78, 216)');
@@ -1049,7 +1051,9 @@ try {
     {
       'cb-controlled': 'yes',
       plan: 'basic',
-      delivery: 'express'
+      delivery: 'express',
+      [await evaluate(`document.getElementById('rg-unnamed-first').name`)]: 'first',
+      'default-val': 'custom'
     }
   );
   await evaluate(`document.getElementById('selection-submit').click(); Promise.resolve()`);
@@ -1074,7 +1078,9 @@ try {
     formData: {
       'cb-uncontrolled': 'on',
       plan: 'pro',
-      delivery: 'standard'
+      delivery: 'standard',
+      [await evaluate(`document.getElementById('rg-unnamed-first').name`)]: 'first',
+      'default-val': 'custom'
     }
   });
 
@@ -1090,6 +1096,77 @@ try {
     rgPlan: 'basic',
     rgBasicChecked: true,
     rgProChecked: false
+  });
+
+  // Verify RadioGroup generates a shared non-empty name when omitted and ignores child name overrides.
+  const unnamedNames = await evaluate(`({
+    first: document.getElementById('rg-unnamed-first').name,
+    second: document.getElementById('rg-unnamed-second').name
+  })`);
+  assert.ok(unnamedNames.first.length > 0, 'unnamed RadioGroup must generate a non-empty name');
+  assert.equal(unnamedNames.second, unnamedNames.first, 'child Radio must keep the group name');
+  await evaluate(`document.getElementById('rg-unnamed-second').click(); Promise.resolve()`);
+  assert.deepEqual(await evaluate(`({
+    firstChecked: document.getElementById('rg-unnamed-first').checked,
+    secondChecked: document.getElementById('rg-unnamed-second').checked,
+    value: document.getElementById('rg-unnamed-value').value,
+    formValue: new FormData(document.getElementById('selection-form')).get(${JSON.stringify(unnamedNames.first)})
+  })`), {
+    firstChecked: false,
+    secondChecked: true,
+    value: 'second',
+    formValue: 'second'
+  });
+
+  // Verify omitted Radio value matches native "on" across DOM, model, FormData, and reset.
+  await evaluate(`document.getElementById('rg-omitted-value').click(); Promise.resolve()`);
+  assert.deepEqual(await evaluate(`({
+    domValue: document.getElementById('rg-omitted-value').value,
+    checked: document.getElementById('rg-omitted-value').checked,
+    model: document.getElementById('rg-default-val-value').value,
+    formValue: new FormData(document.getElementById('selection-form')).get('default-val')
+  })`), {
+    domValue: 'on',
+    checked: true,
+    model: 'on',
+    formValue: 'on'
+  });
+  await mouseClick('selection-reset');
+  assert.deepEqual(await evaluate(`({
+    omittedChecked: document.getElementById('rg-omitted-value').checked,
+    explicitChecked: document.getElementById('rg-explicit-value').checked,
+    model: document.getElementById('rg-default-val-value').value,
+    formValue: new FormData(document.getElementById('selection-form')).get('default-val')
+  })`), {
+    omittedChecked: false,
+    explicitChecked: true,
+    model: 'custom',
+    formValue: 'custom'
+  });
+
+  // Verify resetting form A does not clear a descendant Radio owned by form B or an unrelated native radio.
+  await evaluate(`document.getElementById('rg-owner-b').click(); Promise.resolve()`);
+  assert.deepEqual(await evaluate(`({
+    bChecked: document.getElementById('rg-owner-b').checked,
+    formB: Object.fromEntries(new FormData(document.getElementById('rg-owner-form-b'))),
+    model: document.getElementById('rg-cross-owner-value').value
+  })`), {
+    bChecked: true,
+    formB: { 'cross-owner': 'b' },
+    model: 'b'
+  });
+  await evaluate(`
+    document.getElementById('rg-owner-form-a').reset();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    bChecked: document.getElementById('rg-owner-b').checked,
+    formB: Object.fromEntries(new FormData(document.getElementById('rg-owner-form-b'))),
+    unrelatedChecked: document.getElementById('rg-unrelated-native').checked
+  })`), {
+    bChecked: true,
+    formB: { 'cross-owner': 'b' },
+    unrelatedChecked: true
   });
 
   console.log(`Component fixture passed in ${executable}.`);

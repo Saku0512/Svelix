@@ -29,6 +29,9 @@
   let rgPlan = $state('pro');
   let rgChanges = $state(0);
   let rgSubmissions = $state(0);
+  let rgUnnamed = $state('first');
+  let rgCrossOwner = $state('a');
+  let rgDefaultVal = $state('custom');
 </script>
 
 <section data-svelix-theme="light">
@@ -430,7 +433,26 @@
         rgPlan = 'basic';
       }}
     >Reset then set basic</Button>
+
+    <RadioGroup id="rg-unnamed" legend="Unnamed group" bind:value={rgUnnamed}>
+      <label><Radio id="rg-unnamed-first" value="first" /> First</label>
+      <label><Radio id="rg-unnamed-second" name="overridden" value="second" /> Second</label>
+    </RadioGroup>
+
+    <RadioGroup id="rg-default-value" legend="Omitted value group" name="default-val" bind:value={rgDefaultVal}>
+      <label><Radio id="rg-omitted-value" /> Omitted value</label>
+      <label><Radio id="rg-explicit-value" value="custom" /> Custom value</label>
+    </RadioGroup>
   </form>
+
+  <form id="rg-owner-form-a">
+    <RadioGroup id="rg-cross-owner" legend="Cross-form owner group" name="cross-owner" bind:value={rgCrossOwner}>
+      <label><Radio id="rg-owner-a" value="a" /> Owner A</label>
+      <label><Radio id="rg-owner-b" value="b" form="rg-owner-form-b" /> Owner B</label>
+      <label><input id="rg-unrelated-native" type="radio" name="unrelated-native" value="u" checked /> Unrelated native</label>
+    </RadioGroup>
+  </form>
+  <form id="rg-owner-form-b"></form>
 
   <output id="keyboard-count">{keyboardActivations}</output>
   <output id="disabled-count">{disabledActivations}</output>
@@ -459,6 +481,9 @@
   <output id="rg-plan-value">{rgPlan}</output>
   <output id="rg-changes-value">{rgChanges}</output>
   <output id="rg-submissions-value">{rgSubmissions}</output>
+  <output id="rg-unnamed-value">{rgUnnamed}</output>
+  <output id="rg-cross-owner-value">{rgCrossOwner}</output>
+  <output id="rg-default-val-value">{rgDefaultVal}</output>
 </section>
 
 <section data-svelix-theme="dark" id="dark-theme">

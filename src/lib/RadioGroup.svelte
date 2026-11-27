@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack, type Snippet } from 'svelte';
   import type { HTMLFieldsetAttributes } from 'svelte/elements';
-  import { setRadioGroupContext } from './radio-group-context.js';
+  import { setRadioGroupContext, type RegisteredRadio } from './radio-group-context.js';
 
   type RadioGroupProps = HTMLFieldsetAttributes & {
     /**
@@ -10,7 +10,9 @@
      */
     legend?: string | Snippet;
     /**
-     * Native `name` attribute shared with descendant `<Radio>` controls.
+     * Native `name` attribute shared with all descendant `<Radio>` controls.
+     * When omitted or blank, an SSR-safe unique name is generated so native
+     * radio mutual exclusion still works.
      */
     name?: string;
     /**
@@ -30,10 +32,15 @@
     ...rest
   }: RadioGroupProps = $props();
 
+  const fallbackId = $props.id();
+  const fallbackName = `svelix-radio-group-${fallbackId}`;
+  const resolvedName = $derived(name?.trim() || fallbackName);
   const isControlled = $derived(value !== (VALUE_UNSET as unknown as string));
   const initialValue = untrack(() =>
     value !== (VALUE_UNSET as unknown as string) ? value : undefined
   );
+
+  const registeredRadios = new Set<RegisteredRadio>();
 
   type PendingReset = {
     canceled: boolean;
@@ -56,23 +63,35 @@
   });
 
   setRadioGroupContext({
-    getName: () => name,
+    getName: () => resolvedName,
     isControlled: () => isControlled,
     getValue: () => (isControlled ? value : undefined),
     getInitialValue: () => initialValue,
     setValue: (next: string) => {
       if (isControlled) value = next;
+    },
+    registerRadio: (entry: RegisteredRadio) => {
+      registeredRadios.add(entry);
+      return () => {
+        registeredRadios.delete(entry);
+      };
     }
   });
 
-  function attachRadioGroupReset(fieldset: HTMLFieldSetElement) {
-    // Listen on document in capture so ownership can change via the `form` attribute.
+  function attachRadioGroupReset(_fieldset: HTMLFieldSetElement) {
+    // Listen on document in capture and match each owned Radio's actual `node.form`
+    // rather than querying descendant inputs or assuming `fieldset.form` ownership.
     const onReset = (event: Event) => {
       if (!isControlled) return;
       const form = event.target;
-      if (!(form instanceof HTMLFormElement) || fieldset.form !== form) return;
+      if (!(form instanceof HTMLFormElement)) return;
       // Handle native user activation and form.reset(); ignore synthetic reset events.
       if (!event.isTrusted) return;
+
+      const hasMatchingRadio = [...registeredRadios].some(
+        (radio) => radio.node.isConnected && radio.node.form === form
+      );
+      if (!hasMatchingRadio) return;
 
       const entry: PendingReset = {
         canceled: false,
@@ -82,19 +101,37 @@
 
       setTimeout(() => {
         pendingResets.delete(entry);
-        if (event.defaultPrevented || !fieldset.isConnected || fieldset.form !== form) return;
-        if (!entry.canceled && value !== initialValue) {
-          applyingReset = true;
-          value = initialValue as string;
-          queueMicrotask(() => {
-            applyingReset = false;
-          });
+        if (event.defaultPrevented) return;
+
+        const matchingRadios = [...registeredRadios].filter(
+          (radio) => radio.node.isConnected && radio.node.form === form
+        );
+        if (matchingRadios.length === 0) return;
+
+        if (!entry.canceled) {
+          const activeOwnedByOtherForm =
+            value !== undefined &&
+            [...registeredRadios].some(
+              (radio) =>
+                radio.node.isConnected && radio.node.form !== form && radio.getValue() === value
+            );
+          if (!activeOwnedByOtherForm) {
+            const defaultRadio = matchingRadios.find((radio) => radio.getDefaultChecked());
+            const nextValue = defaultRadio ? defaultRadio.getValue() : initialValue;
+            if (value !== nextValue) {
+              applyingReset = true;
+              value = nextValue as string;
+              queueMicrotask(() => {
+                applyingReset = false;
+              });
+            }
+          }
         }
-        // Re-sync DOM checked state with the live value after native reset.
+
+        // Re-sync DOM checked state only for owned radios belonging to the reset form.
         const current = value;
-        for (const input of fieldset.querySelectorAll<HTMLInputElement>('input[type="radio"]')) {
-          if (name && input.name !== name) continue;
-          input.checked = current !== undefined && input.value === current;
+        for (const radio of matchingRadios) {
+          radio.node.checked = current !== undefined && radio.getValue() === current;
         }
       }, 0);
     };

@@ -130,8 +130,8 @@ Always associate each `Checkbox` with a visible `<label>` using `for`/`id` or by
 
 `RadioGroup` renders a native `<fieldset>` with an optional `<legend>` (`legend` prop accepts a string or a Svelte snippet; omit it to place your own `<legend>` as the first child). `Radio` renders a native `<input type="radio">` and forwards `HTMLInputAttributes` (omitting `type` and `children`). No custom ARIA radio widget or focus-management layer is introduced; native arrow-key navigation, `Tab` order, `disabled` skipping, and `FormData` submission are preserved.
 
-- **Shared `name`**: Set `name` on `RadioGroup` so child `Radio` controls inherit it automatically (an explicit `name` on `Radio` takes precedence).
-- **Controlled / bound**: Pass `bind:value` on `RadioGroup` to own the selected value in Svelte state. Native `form.reset()` restores the mount-time initial value unless application code writes a newer `value` immediately after `reset()`.
+- **Shared `name`**: Set `name` on `RadioGroup` so descendant `Radio` controls form one native radio group (when omitted or blank, `RadioGroup` generates an SSR-safe unique name; inside a `RadioGroup`, the group's `name` always wins so native mutual exclusion stays aligned with the group model).
+- **Controlled / bound**: Pass `bind:value` on `RadioGroup` to own the selected value in Svelte state. Omitting `value` on a `Radio` uses the native `"on"` default consistently across DOM, `FormData`, and `bind:value`. Native `form.reset()` syncs only owned `Radio` controls belonging to the reset form and preserves newer application writes immediately after `reset()`.
 - **Uncontrolled**: Omit `value` on `RadioGroup` and set `defaultChecked` on the default `Radio`. The browser owns selection and form reset natively.
 - **Disabled**: Set `disabled` on an individual `Radio` to disable one option, or set `disabled` on `RadioGroup` (`<fieldset disabled>`) to disable the entire group natively.
 
