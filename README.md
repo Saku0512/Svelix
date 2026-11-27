@@ -3,15 +3,120 @@ A compiler-first UI library for Svelte, inspired by the Unix philosophy.  Small,
 
 ## Development
 
-Use Node.js 24 LTS for development. The checks for this revision were run with Node.js 22.23.4 and npm 10.9.9. This is a development-tool requirement, not a statement about consumers' runtime or browser compatibility. Install the locked dependencies with `npm ci`, then run `npm run check` and `npm run build`. The build writes the distributable package to `dist/`.
+Use Node.js 24 LTS for development. The checks for this revision were run with Node.js 22.23.4 and npm 10.9.9. This is a development-tool requirement, not a statement about consumers' runtime or browser compatibility. Svelix requires Svelte 5.59.0 or newer (`peerDependencies: svelte@^5.59.0`). That is the verified minimum for this repository's toolchain: Input needs `defaultValue` / `defaultChecked` (added in 5.6.0), and the locked `@sveltejs/vite-plugin-svelte@7.3.2` resolves Svelte internals that exist from 5.59.0. `npm run test:package` installs Svelte 5.59.0 into the consumer fixture to exercise that floor. Install the locked dependencies with `npm ci`, then run `npm run check` and `npm run build`. The build writes the distributable package to `dist/`.
 
-After building, run `npm run test:package` to pack the library, install it in a temporary Svelte application, type-check its entry point, and build that application. The test uses npm's local cache for the fixture installation.
+After building, run `npm run test:package` to pack the library, install it in a temporary Svelte application against Svelte 5.59.0, type-check its entry point, and build that application.
 
 Run `npm run test:package:clean` for a clean install and repeat-build comparison of the actual source, followed by a temporary Svelte component to verify generated types and an external application build. It requires npm registry access.
 
 Run `npm run test:theme` to check the theme fixture in headless Chromium. It needs a local Chrome or Chromium binary and does not add a browser package. Set `CHROME_PATH` when the binary is not `google-chrome` on `PATH`. Set `THEME_SCREENSHOT_DIR` to write light and dark PNG captures of the fixture.
 
-The package exposes its shared CSS as `svelix/styles.css`. UI components are under development.
+Run `npm run test:components` to build the Button and Input browser fixture and verify native form, keyboard, disabled, validation, binding, styling, and scoped-style behavior in headless Chromium. It uses the same `CHROME_PATH` override and adds no browser dependency.
+
+The package exposes Button and Input from `svelix`, and its shared CSS from `svelix/styles.css`.
+
+## Components
+
+Import the shared stylesheet once in the application, then import components from the package entry point.
+
+### Button
+
+Button renders a native `<button>` and forwards native button attributes and event callbacks. It does not supply a `type`, so the browser default remains `submit` inside a form. Set `type="button"` for non-submit actions. The available variants are `primary` (default), `secondary`, `outline`, and `ghost`.
+
+```svelte
+<script lang="ts">
+  import { Button } from 'svelix';
+  import 'svelix/styles.css';
+</script>
+
+<form action="/profile" method="post">
+  <Button name="intent" value="save">Save profile</Button>
+  <Button type="button" variant="ghost" onclick={() => history.back()}>Cancel</Button>
+</form>
+```
+
+Button content normally provides its accessible name. Icon-only buttons must receive a native naming attribute such as `aria-label`. Disabled buttons use the native `disabled` attribute; no loading behavior is simulated.
+
+### Input
+
+Input renders a native `<input>`, forwards native attributes and event callbacks, and applies the Svelte binding that matches the input type. `type` matching is ASCII case-insensitive.
+
+| `type` | Binding |
+| --- | --- |
+| `checkbox` | `bind:checked` by default, or `bind:group` for checkbox groups (array). Optional HTML `value` for form submission. |
+| `radio` | native `checked` / `defaultChecked` when `group` is omitted; `bind:group` when grouping reactively (provide a non-`undefined` initial value such as `null` or a selected option) |
+| `file` | `bind:files` (`FileList`; leave unset initially; do not assign a path string) |
+| other | `bind:value` (supports `defaultValue` form reset) |
+
+`defaultChecked` (and the inferred initial checked/`group` membership used when it is omitted) is snapshotted when the Input instance mounts. Later updates to a reactive `defaultChecked` prop do not change the form-reset baseline. Grouped checkbox reset follows trusted reset-button activation and `HTMLFormElement.reset()`, ignores synthetic `dispatchEvent(new Event('reset'))`, and does not overwrite a newer `group` write that happens immediately after `reset()`.
+
+```svelte
+<script lang="ts">
+  import { Input } from 'svelix';
+  import 'svelix/styles.css';
+
+  let email = $state('');
+  let accepted = $state(false);
+  let size = $state('m');
+  let toppings = $state([]);
+  let uploads = $state();
+</script>
+
+<label for="email">Email address</label>
+<Input
+  id="email"
+  name="email"
+  type="email"
+  autocomplete="email"
+  bind:value={email}
+  required
+/>
+
+<label>
+  <Input type="checkbox" bind:checked={accepted} value="yes" />
+  Accept terms
+</label>
+
+<label><Input type="checkbox" value="rice" bind:group={toppings} /> Rice</label>
+<label><Input type="checkbox" value="beans" bind:group={toppings} /> Beans</label>
+
+<label><Input type="radio" name="size" value="s" bind:group={size} /> S</label>
+<label><Input type="radio" name="size" value="m" bind:group={size} /> M</label>
+
+<label>
+  <Input type="radio" name="plain" value="a" />
+  A
+</label>
+<label>
+  <Input type="radio" name="plain" value="b" checked />
+  B
+</label>
+
+<label for="upload">Upload</label>
+<Input id="upload" type="file" bind:files={uploads} />
+```
+
+Use a visible `<label>` associated with `for` and `id`; a placeholder is not a label. Native constraint failures receive invalid styling after user interaction through `:user-invalid`. For custom or server-side validation, set `aria-invalid="true"` and associate visible error text with `aria-describedby`. Svelix does not add validation timing, messages, or submission logic. Checkbox and radio controls use `accent-color` from the shared primary token.
+
+### Component styling
+
+Button and Input styles are scoped and consume the shared tokens documented below. Override a token on a component class to customize one instance, or set ordinary CSS properties on that class. Component rules use zero-specificity `:where(...)` selectors so a consumer class can override defaults without `!important`.
+
+```svelte
+<Button class="confirm">Confirm</Button>
+<Input class="account-field" aria-label="Account code" />
+
+<style>
+  :global(.confirm) {
+    --svelix-primary: #047857;
+    --svelix-primary-foreground: #ffffff;
+  }
+
+  :global(.account-field) {
+    border-radius: 0;
+  }
+</style>
+```
 
 ## Theme
 

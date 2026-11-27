@@ -1,2 +1,2 @@
-// Public component exports will be added as components are implemented.
-export {};
+export { default as Button } from './Button.svelte';
+export { default as Input } from './Input.svelte';
