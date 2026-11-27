@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Svelix theme checks</title>
+<link id="theme-styles" rel="stylesheet" href="../src/lib/styles.css">
+<style>
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #e5e7eb;
+    font: 16px/1.4 system-ui, sans-serif;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  h2 { font-size: 1rem; margin: 0; }
+  .panel {
+    background: var(--svelix-background);
+    color: var(--svelix-foreground);
+    display: grid;
+    gap: var(--svelix-spacing-sm);
+    width: 22rem;
+    padding: var(--svelix-spacing-md);
+    border-radius: var(--svelix-radius-md);
+  }
+  .row { display: flex; flex-wrap: wrap; gap: var(--svelix-spacing-sm); }
+  .control {
+    font: inherit;
+    padding: var(--svelix-spacing-sm) var(--svelix-spacing-md);
+    border-radius: var(--svelix-radius-md);
+    border: var(--svelix-border-width) solid transparent;
+  }
+  .primary { background: var(--svelix-primary); color: var(--svelix-primary-foreground); }
+  .secondary { background: var(--svelix-secondary); color: var(--svelix-secondary-foreground); }
+  .outline {
+    background: var(--svelix-background);
+    color: var(--svelix-foreground);
+    border-color: var(--svelix-border);
+  }
+  .ghost { background: transparent; color: var(--svelix-foreground); }
+  .disabled { background: var(--svelix-muted); color: var(--svelix-muted-foreground); }
+  .field {
+    font: inherit;
+    color: var(--svelix-foreground);
+    background: var(--svelix-background);
+    border: var(--svelix-border-width) solid var(--svelix-border);
+    border-radius: var(--svelix-radius-sm);
+    padding: var(--svelix-spacing-xs) var(--svelix-spacing-sm);
+  }
+  .field.invalid { border-color: var(--svelix-danger); color: var(--svelix-danger); }
+  .label, .choice, legend { color: var(--svelix-foreground); }
+  .choice-input { accent-color: var(--svelix-primary); }
+  .group {
+    margin: 0;
+    border: var(--svelix-border-width) solid var(--svelix-border);
+    border-radius: var(--svelix-radius-sm);
+    padding: var(--svelix-spacing-sm);
+  }
+  .separator {
+    width: 100%;
+    margin: var(--svelix-spacing-sm) 0;
+    border: 0;
+    border-top: var(--svelix-border-width) solid var(--svelix-border);
+  }
+  .control:focus-visible,
+  .field:focus-visible,
+  .choice-input:focus-visible {
+    outline: var(--svelix-focus-ring-width) solid var(--svelix-focus-ring);
+    outline-offset: var(--svelix-focus-ring-offset);
+  }
+  .custom { --svelix-primary: #047857; --svelix-primary-foreground: #ffffff; --svelix-radius-md: 1rem; }
+  #host, #result, #unrelated { flex-basis: 100%; }
+</style>
+</head>
+<body>
+  <section class="panel" id="light-panel">
+    <h2>Light</h2>
+    <div class="row">
+      <button class="control primary" id="light" type="button">Primary</button>
+      <button class="control secondary" id="secondary" type="button">Secondary</button>
+      <button class="control outline" id="outline" type="button">Outline</button>
+      <button class="control ghost" id="ghost" type="button">Ghost</button>
+      <button class="control disabled" id="disabled" type="button" disabled>Disabled</button>
+    </div>
+    <label class="label" id="label" for="field">Label</label>
+    <input class="field" id="field" value="Input">
+    <input class="field invalid" id="invalid" value="Invalid" aria-invalid="true">
+    <label class="choice"><input class="choice-input" id="checkbox" type="checkbox" checked> Checkbox</label>
+    <fieldset class="group" id="radios">
+      <legend>Radio group</legend>
+      <label class="choice"><input class="choice-input" id="radio" type="radio" name="sample" checked> One</label>
+      <label class="choice"><input class="choice-input" type="radio" name="sample"> Two</label>
+    </fieldset>
+    <hr class="separator" id="separator">
+  </section>
+  <section class="panel" data-svelix-theme="dark" id="dark">
+    <h2>Dark</h2>
+    <button class="control primary" id="dark-button" type="button">Primary</button>
+    <input class="field" id="dark-field" value="Input">
+    <hr class="separator" id="dark-separator">
+    <section class="panel" data-svelix-theme="light" id="nested">Nested light</section>
+    <section class="custom panel" id="custom"><button class="control primary" id="custom-button" type="button">Custom</button></section>
+  </section>
+  <section class="panel" data-theme="dark" id="unrelated">Unrelated data-theme</section>
+  <p id="host">Unstyled host content</p>
+  <pre id="result">RUNNING</pre>
+<script>
+  const result = document.getElementById('result');
+  const root = document.documentElement;
+  const style = (id) => getComputedStyle(document.getElementById(id));
+  const token = (element, name) => getComputedStyle(element).getPropertyValue(`--svelix-${name}`).trim();
+  const equal = (actual, expected, message) => {
+    if (actual !== expected) throw new Error(`${message}: expected ${expected}, got ${actual}`);
+  };
+  const sharedTokens = ['radius-sm', 'radius-md', 'spacing-xs', 'spacing-sm', 'spacing-md', 'border-width', 'focus-ring-width', 'focus-ring-offset'];
+  const colorTokens = ['background', 'foreground', 'primary', 'primary-foreground', 'secondary', 'secondary-foreground', 'muted', 'muted-foreground', 'border', 'danger', 'focus-ring'];
+  function luminance(hex) {
+    const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+    return rgb.map((c) => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+      .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+  }
+  function contrast(element, a, b, minimum) {
+    const levels = [luminance(token(element, a)), luminance(token(element, b))].sort((x, y) => y - x);
+    const ratio = (levels[0] + 0.05) / (levels[1] + 0.05);
+    if (!(ratio >= minimum)) throw new Error(`${a}/${b}: contrast ${ratio.toFixed(2)} < ${minimum}`);
+  }
+  window.__scheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  window.__reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.__focused = [];
+  const focusTargets = {
+    light(computed) {
+      equal(computed.outlineWidth, '2px', 'visible focus width');
+      equal(computed.outlineStyle, 'solid', 'visible focus style');
+      equal(computed.outlineOffset, '2px', 'visible focus offset');
+      equal(computed.outlineColor, 'rgb(29, 78, 216)', 'light focus color');
+    },
+    field(computed) {
+      equal(computed.outlineStyle, 'solid', 'input focus style');
+      equal(computed.outlineColor, 'rgb(29, 78, 216)', 'input focus color');
+    },
+    'dark-button'(computed) {
+      equal(computed.outlineStyle, 'solid', 'dark focus style');
+      equal(computed.outlineColor, 'rgb(147, 197, 253)', 'dark focus color');
+    }
+  };
+  const pendingFocus = new Set(Object.keys(focusTargets));
+  window.__checkFocus = () => {
+    if (document.body.dataset.result !== 'awaiting-focus') return document.body.dataset.result;
+    const element = document.activeElement;
+    const check = element && focusTargets[element.id];
+    if (!check || !element.matches(':focus-visible')) return document.body.dataset.result;
+    try {
+      check(getComputedStyle(element));
+      if (!window.__focused.includes(element.id)) window.__focused.push(element.id);
+      pendingFocus.delete(element.id);
+      if (pendingFocus.size === 0) {
+        result.textContent = 'PASS';
+        document.body.dataset.result = 'pass';
+      }
+    } catch (error) {
+      result.textContent = `FAIL: ${error.message}`;
+      document.body.dataset.result = 'fail';
+    }
+    return document.body.dataset.result;
+  };
+  document.addEventListener('keyup', (event) => {
+    if (event.key === 'Tab') requestAnimationFrame(() => window.__checkFocus());
+  });
+  try {
+    const sheet = document.getElementById('theme-styles').sheet;
+    if (!sheet) throw new Error('theme stylesheet not loaded');
+    const rules = [...sheet.cssRules];
+    equal(String(rules.length), '3', 'stylesheet rule count');
+    const expected = new Set([...sharedTokens, ...colorTokens]);
+    const found = new Set();
+    for (const rule of rules) {
+      if (!(rule instanceof CSSStyleRule)) throw new Error(`Unexpected rule: ${rule.cssText}`);
+      if (rule.cssText.includes('@media') || rule.cssText.includes('prefers-')) throw new Error(`Unexpected conditional: ${rule.cssText}`);
+      for (const property of rule.style) {
+        if (!property.startsWith('--svelix-')) throw new Error(`Non-token property: ${property}`);
+        if (property.includes('duration') || property.includes('easing')) throw new Error(`Motion token: ${property}`);
+        found.add(property.slice('--svelix-'.length));
+      }
+    }
+    for (const name of expected) if (!found.has(name)) throw new Error(`Missing token: ${name}`);
+    for (const name of found) if (!expected.has(name)) throw new Error(`Unexpected token: ${name}`);
+    equal(token(root, 'background'), '#ffffff', 'default light');
+    equal(token(document.getElementById('dark'), 'background'), '#0f172a', 'dark subtree');
+    equal(token(document.getElementById('nested'), 'background'), '#ffffff', 'nested light');
+    equal(token(document.getElementById('unrelated'), 'background'), '#ffffff', 'unrelated data-theme');
+    equal(getComputedStyle(root).colorScheme, 'normal', 'host color-scheme untouched');
+    equal(style('light').backgroundColor, 'rgb(29, 78, 216)', 'primary consumption');
+    equal(style('light').color, 'rgb(255, 255, 255)', 'primary foreground consumption');
+    equal(style('light').paddingTop, '8px', 'spacing-sm consumption');
+    equal(style('light').paddingLeft, '12px', 'spacing-md consumption');
+    equal(style('light').borderRadius, '8px', 'radius-md consumption');
+    equal(style('light').borderTopWidth, '1px', 'border-width consumption');
+    equal(style('secondary').backgroundColor, 'rgb(226, 232, 240)', 'secondary consumption');
+    equal(style('secondary').color, 'rgb(15, 23, 42)', 'secondary foreground consumption');
+    equal(style('outline').backgroundColor, 'rgb(255, 255, 255)', 'outline background consumption');
+    equal(style('outline').color, 'rgb(15, 23, 42)', 'outline foreground consumption');
+    equal(style('outline').borderTopColor, 'rgb(100, 116, 139)', 'outline border consumption');
+    equal(style('ghost').backgroundColor, 'rgba(0, 0, 0, 0)', 'ghost has no fill');
+    equal(style('ghost').color, 'rgb(15, 23, 42)', 'ghost foreground consumption');
+    equal(style('disabled').backgroundColor, 'rgb(241, 245, 249)', 'disabled muted consumption');
+    equal(style('disabled').color, 'rgb(71, 85, 105)', 'disabled muted foreground consumption');
+    equal(style('label').color, 'rgb(15, 23, 42)', 'label foreground consumption');
+    equal(style('field').backgroundColor, 'rgb(255, 255, 255)', 'input background consumption');
+    equal(style('field').borderTopColor, 'rgb(100, 116, 139)', 'input border consumption');
+    equal(style('field').borderRadius, '4px', 'input radius-sm consumption');
+    equal(style('invalid').borderTopColor, 'rgb(185, 28, 28)', 'invalid danger consumption');
+    equal(style('invalid').color, 'rgb(185, 28, 28)', 'invalid text consumption');
+    equal(style('checkbox').accentColor, 'rgb(29, 78, 216)', 'checkbox accent consumption');
+    equal(style('radio').accentColor, 'rgb(29, 78, 216)', 'radio accent consumption');
+    equal(style('radios').borderTopColor, 'rgb(100, 116, 139)', 'radio group border consumption');
+    equal(style('separator').borderTopColor, 'rgb(100, 116, 139)', 'separator border consumption');
+    equal(style('separator').borderTopWidth, '1px', 'separator width consumption');
+    equal(style('separator').marginTop, '8px', 'separator spacing consumption');
+    equal(style('dark-button').backgroundColor, 'rgb(147, 197, 253)', 'dark primary consumption');
+    equal(style('dark-button').color, 'rgb(15, 23, 42)', 'dark primary foreground consumption');
+    equal(style('dark-field').backgroundColor, 'rgb(15, 23, 42)', 'dark input background consumption');
+    equal(style('dark-field').color, 'rgb(248, 250, 252)', 'dark input foreground consumption');
+    equal(style('dark-separator').borderTopColor, 'rgb(148, 163, 184)', 'dark separator consumption');
+    equal(style('custom-button').backgroundColor, 'rgb(4, 120, 87)', 'consumer color override');
+    equal(style('custom-button').color, 'rgb(255, 255, 255)', 'consumer foreground override');
+    equal(style('custom-button').borderRadius, '16px', 'consumer radius override');
+    equal(style('light').transitionDuration, '0s', 'no transition');
+    equal(style('light').animationDuration, '0s', 'no animation');
+    const host = document.getElementById('host');
+    const before = [style('host').color, style('host').backgroundColor, style('host').fontFamily, style('host').marginTop, style('host').colorScheme];
+    sheet.disabled = true;
+    const after = [style('host').color, style('host').backgroundColor, style('host').fontFamily, style('host').marginTop, style('host').colorScheme];
+    sheet.disabled = false;
+    equal(JSON.stringify(before), JSON.stringify(after), 'host styles unchanged');
+    root.dataset.svelixTheme = 'dark';
+    equal(token(root, 'background'), '#0f172a', 'explicit root dark');
+    root.dataset.svelixTheme = 'light';
+    equal(token(root, 'background'), '#ffffff', 'explicit root light');
+    delete root.dataset.svelixTheme;
+    for (const element of [root, document.getElementById('dark')]) {
+      for (const [a, b] of [['foreground', 'background'], ['primary-foreground', 'primary'], ['secondary-foreground', 'secondary'], ['muted-foreground', 'muted'], ['danger', 'background']]) contrast(element, a, b, 4.5);
+      contrast(element, 'border', 'background', 3);
+      contrast(element, 'focus-ring', 'background', 3);
+    }
+    result.textContent = 'AWAITING_FOCUS';
+    document.body.dataset.result = 'awaiting-focus';
+  } catch (error) {
+    result.textContent = `FAIL: ${error.message}`;
+    document.body.dataset.result = 'fail';
+  }
+</script>
+</body>
+</html>
