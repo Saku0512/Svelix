@@ -8,7 +8,7 @@
   --svelix-border-width: 1px;
 }
 
-/* Light is the default. */
+/* Light is the default and can also be restored inside a dark subtree. */
 :where(:root, [data-svelix-theme="light"]) {
   --svelix-background: #ffffff;
   --svelix-foreground: #0f172a;
@@ -20,4 +20,17 @@
   --svelix-muted-foreground: #475569;
   --svelix-border: #64748b;
   --svelix-danger: #b91c1c;
+}
+
+:where([data-svelix-theme="dark"]) {
+  --svelix-background: #0f172a;
+  --svelix-foreground: #f8fafc;
+  --svelix-primary: #93c5fd;
+  --svelix-primary-foreground: #0f172a;
+  --svelix-secondary: #334155;
+  --svelix-secondary-foreground: #f8fafc;
+  --svelix-muted: #1e293b;
+  --svelix-muted-foreground: #cbd5e1;
+  --svelix-border: #94a3b8;
+  --svelix-danger: #fca5a5;
 }
