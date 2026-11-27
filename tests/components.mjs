@@ -134,9 +134,20 @@ try {
   const page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
   if (!page) throw new Error('Chrome did not expose a page target');
 
+  const pageErrors = [];
   socket = new WebSocket(page.webSocketDebuggerUrl);
   socket.addEventListener('message', (event) => {
     const message = JSON.parse(event.data);
+    if (message.method === 'Runtime.exceptionThrown') {
+      const detail = message.params?.exceptionDetails;
+      pageErrors.push(detail?.exception?.description || detail?.text || 'Unhandled page exception');
+      return;
+    }
+    if (message.method === 'Runtime.consoleAPICalled' && message.params?.type === 'error') {
+      const args = (message.params.args ?? []).map((arg) => arg.description ?? String(arg.value ?? '')).join(' ');
+      pageErrors.push(`console.error: ${args}`);
+      return;
+    }
     if (message.id && pending.has(message.id)) {
       const entry = pending.get(message.id);
       pending.delete(message.id);
@@ -236,6 +247,18 @@ try {
     await evaluate(`new Promise((resolve) => setTimeout(resolve, 0))`);
   };
 
+  const runCase = async (name, fn) => {
+    try {
+      await fn();
+    } catch (error) {
+      if (error instanceof Error) {
+        error.message = `[${name}] ${error.message}`;
+      }
+      throw error;
+    }
+  };
+
+  await send('Runtime.enable');
   await send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
   const deadline = Date.now() + 8000;
   while (Date.now() < deadline) {
@@ -1010,9 +1033,24 @@ try {
 
   // Disabled checkbox is skipped in Tab order, moving focus to the uncontrolled checkbox.
   await key('Tab', 'Tab', 9);
+  assert.equal(await evaluate(`document.activeElement.id`), 'cb-set-indeterminate');
+  await key('Tab', 'Tab', 9);
   assert.equal(await evaluate(`document.activeElement.id`), 'cb-uncontrolled');
   await key(' ', 'Space', 32);
   assert.equal(await evaluate(`document.getElementById('cb-uncontrolled').checked`), false);
+
+  // Skip over invalid checkbox to reach the controlled RadioGroup.
+  await key('Tab', 'Tab', 9);
+  assert.equal(await evaluate(`document.activeElement.id`), 'cb-invalid');
+  assert.equal(
+    await evaluate(`getComputedStyle(document.getElementById('cb-invalid')).accentColor`),
+    'rgb(185, 28, 28)',
+    'aria-invalid checkbox must use danger accent token'
+  );
+  assert.equal(
+    await evaluate(`document.getElementById('cb-invalid').getAttribute('aria-describedby')`),
+    'cb-invalid-error'
+  );
 
   // Verify RadioGroup keyboard interaction (Tab into checked radio, ArrowUp skipping disabled option).
   await key('Tab', 'Tab', 9);
@@ -1149,7 +1187,7 @@ try {
   assert.deepEqual(await evaluate(`({
     bChecked: document.getElementById('rg-owner-b').checked,
     formB: Object.fromEntries(new FormData(document.getElementById('rg-owner-form-b'))),
-    model: document.getElementById('rg-cross-owner-value').value
+    model: JSON.parse(document.getElementById('rg-cross-owner-value').value)
   })`), {
     bChecked: true,
     formB: { 'cross-owner': 'b' },
@@ -1170,140 +1208,251 @@ try {
   });
 
   // Verify resetting form B clears B without re-checking A in form A.
-  await evaluate(`
-    document.getElementById('rg-owner-form-b').reset();
-    new Promise((resolve) => setTimeout(resolve, 0));
-  `);
-  assert.deepEqual(await evaluate(`({
-    aChecked: document.getElementById('rg-owner-a').checked,
-    bChecked: document.getElementById('rg-owner-b').checked,
-    model: document.getElementById('rg-cross-owner-value').value,
-    formA: Object.fromEntries(new FormData(document.getElementById('rg-owner-form-a'))),
-    formB: Object.fromEntries(new FormData(document.getElementById('rg-owner-form-b')))
-  })`), {
-    aChecked: false,
-    bChecked: false,
-    model: 'null',
-    formA: { 'unrelated-native': 'u' },
-    formB: {}
+  await runCase('radio-group: inverse cross-form reset preserves form A', async () => {
+    await evaluate(`
+      document.getElementById('rg-owner-form-b').reset();
+      new Promise((resolve) => setTimeout(resolve, 0));
+    `);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-owner-a').checked,
+      bChecked: document.getElementById('rg-owner-b').checked,
+      model: JSON.parse(document.getElementById('rg-cross-owner-value').value),
+      formA: Object.fromEntries(new FormData(document.getElementById('rg-owner-form-a'))),
+      formB: Object.fromEntries(new FormData(document.getElementById('rg-owner-form-b')))
+    })`), {
+      aChecked: false,
+      bChecked: false,
+      model: null,
+      formA: { 'unrelated-native': 'u' },
+      formB: {}
+    });
   });
 
   // Verify explicit defaultChecked={false} resets to null and remains controlled for re-selection.
-  assert.deepEqual(await evaluate(`({
-    aChecked: document.getElementById('rg-eu-a').checked,
-    bChecked: document.getElementById('rg-eu-b').checked,
-    model: document.getElementById('rg-explicit-unchecked-value').value,
-    formData: Object.fromEntries(new FormData(document.getElementById('rg-explicit-unchecked-form')))
-  })`), {
-    aChecked: true,
-    bChecked: false,
-    model: 'a',
-    formData: { 'explicit-unchecked': 'a' }
-  });
-  await evaluate(`
-    document.getElementById('rg-explicit-unchecked-form').reset();
-    new Promise((resolve) => setTimeout(resolve, 0));
-  `);
-  assert.deepEqual(await evaluate(`({
-    aChecked: document.getElementById('rg-eu-a').checked,
-    bChecked: document.getElementById('rg-eu-b').checked,
-    model: document.getElementById('rg-explicit-unchecked-value').value,
-    formData: Object.fromEntries(new FormData(document.getElementById('rg-explicit-unchecked-form')))
-  })`), {
-    aChecked: false,
-    bChecked: false,
-    model: 'null',
-    formData: {}
-  });
-  await evaluate(`document.getElementById('rg-eu-b').click(); Promise.resolve()`);
-  assert.deepEqual(await evaluate(`({
-    aChecked: document.getElementById('rg-eu-a').checked,
-    bChecked: document.getElementById('rg-eu-b').checked,
-    model: document.getElementById('rg-explicit-unchecked-value').value,
-    formData: Object.fromEntries(new FormData(document.getElementById('rg-explicit-unchecked-form')))
-  })`), {
-    aChecked: false,
-    bChecked: true,
-    model: 'b',
-    formData: { 'explicit-unchecked': 'b' }
-  });
-
-  // Verify controlled null lifecycle: initial null -> select -> reset -> re-select -> programmatic clear -> re-select.
-  assert.deepEqual(await evaluate(`({
-    aChecked: document.getElementById('rg-null-a').checked,
-    bChecked: document.getElementById('rg-null-b').checked,
-    model: document.getElementById('rg-nullable-value').value,
-    formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
-  })`), {
-    aChecked: false,
-    bChecked: false,
-    model: 'null',
-    formData: {}
-  });
-  await evaluate(`document.getElementById('rg-null-a').click(); Promise.resolve()`);
-  assert.deepEqual(await evaluate(`({
-    aChecked: document.getElementById('rg-null-a').checked,
-    bChecked: document.getElementById('rg-null-b').checked,
-    model: document.getElementById('rg-nullable-value').value,
-    formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
-  })`), {
-    aChecked: true,
-    bChecked: false,
-    model: 'a',
-    formData: { 'nullable-choice': 'a' }
-  });
-  await evaluate(`
-    document.getElementById('rg-nullable-form').reset();
-    new Promise((resolve) => setTimeout(resolve, 0));
-  `);
-  assert.deepEqual(await evaluate(`({
-    aChecked: document.getElementById('rg-null-a').checked,
-    bChecked: document.getElementById('rg-null-b').checked,
-    model: document.getElementById('rg-nullable-value').value,
-    formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
-  })`), {
-    aChecked: false,
-    bChecked: false,
-    model: 'null',
-    formData: {}
-  });
-  await evaluate(`document.getElementById('rg-null-b').click(); Promise.resolve()`);
-  assert.deepEqual(await evaluate(`({
-    aChecked: document.getElementById('rg-null-a').checked,
-    bChecked: document.getElementById('rg-null-b').checked,
-    model: document.getElementById('rg-nullable-value').value,
-    formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
-  })`), {
-    aChecked: false,
-    bChecked: true,
-    model: 'b',
-    formData: { 'nullable-choice': 'b' }
-  });
-  await evaluate(`document.getElementById('rg-nullable-clear').click(); Promise.resolve()`);
-  assert.deepEqual(await evaluate(`({
-    aChecked: document.getElementById('rg-null-a').checked,
-    bChecked: document.getElementById('rg-null-b').checked,
-    model: document.getElementById('rg-nullable-value').value,
-    formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
-  })`), {
-    aChecked: false,
-    bChecked: false,
-    model: 'null',
-    formData: {}
-  });
-  await evaluate(`document.getElementById('rg-null-a').click(); Promise.resolve()`);
-  assert.deepEqual(await evaluate(`({
-    aChecked: document.getElementById('rg-null-a').checked,
-    bChecked: document.getElementById('rg-null-b').checked,
-    model: document.getElementById('rg-nullable-value').value,
-    formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
-  })`), {
-    aChecked: true,
-    bChecked: false,
-    model: 'a',
-    formData: { 'nullable-choice': 'a' }
+  await runCase('radio-group: explicit defaultChecked=false resets to null and re-selects', async () => {
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-eu-a').checked,
+      bChecked: document.getElementById('rg-eu-b').checked,
+      model: JSON.parse(document.getElementById('rg-explicit-unchecked-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-explicit-unchecked-form')))
+    })`), {
+      aChecked: true,
+      bChecked: false,
+      model: 'a',
+      formData: { 'explicit-unchecked': 'a' }
+    });
+    await evaluate(`
+      document.getElementById('rg-explicit-unchecked-form').reset();
+      new Promise((resolve) => setTimeout(resolve, 0));
+    `);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-eu-a').checked,
+      bChecked: document.getElementById('rg-eu-b').checked,
+      model: JSON.parse(document.getElementById('rg-explicit-unchecked-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-explicit-unchecked-form')))
+    })`), {
+      aChecked: false,
+      bChecked: false,
+      model: null,
+      formData: {}
+    });
+    await evaluate(`document.getElementById('rg-eu-b').click(); Promise.resolve()`);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-eu-a').checked,
+      bChecked: document.getElementById('rg-eu-b').checked,
+      model: JSON.parse(document.getElementById('rg-explicit-unchecked-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-explicit-unchecked-form')))
+    })`), {
+      aChecked: false,
+      bChecked: true,
+      model: 'b',
+      formData: { 'explicit-unchecked': 'b' }
+    });
   });
 
+  // Verify controlled null lifecycle with trusted clicks, keyboard reset, synthetic/canceled resets, and clear/re-select.
+  await runCase('radio-group: controlled null lifecycle and reset edge cases', async () => {
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-null-a').checked,
+      bChecked: document.getElementById('rg-null-b').checked,
+      model: JSON.parse(document.getElementById('rg-nullable-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+    })`), {
+      aChecked: false,
+      bChecked: false,
+      model: null,
+      formData: {}
+    });
+    await mouseClick('rg-null-a-label');
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-null-a').checked,
+      bChecked: document.getElementById('rg-null-b').checked,
+      model: JSON.parse(document.getElementById('rg-nullable-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+    })`), {
+      aChecked: true,
+      bChecked: false,
+      model: 'a',
+      formData: { 'nullable-choice': 'a' }
+    });
+    // Synthetic and canceled resets must not alter controlled selection.
+    await evaluate(`
+      document.getElementById('rg-nullable-synthetic-reset').click();
+      new Promise((resolve) => setTimeout(resolve, 0));
+    `);
+    assert.equal(await evaluate(`JSON.parse(document.getElementById('rg-nullable-value').value)`), 'a');
+    await evaluate(`
+      document.getElementById('rg-nullable-canceled-reset').click();
+      new Promise((resolve) => setTimeout(resolve, 0));
+    `);
+    assert.equal(await evaluate(`JSON.parse(document.getElementById('rg-nullable-value').value)`), 'a');
+    // Canceled reset followed by a valid reset in the same task must clear to null.
+    await evaluate(`
+      document.getElementById('rg-nullable-canceled-then-valid').click();
+      new Promise((resolve) => setTimeout(resolve, 0));
+    `);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-null-a').checked,
+      bChecked: document.getElementById('rg-null-b').checked,
+      model: JSON.parse(document.getElementById('rg-nullable-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+    })`), {
+      aChecked: false,
+      bChecked: false,
+      model: null,
+      formData: {}
+    });
+    // Re-select via trusted label click, then test trusted keyboard reset via Enter.
+    await mouseClick('rg-null-b-label');
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-null-a').checked,
+      bChecked: document.getElementById('rg-null-b').checked,
+      model: JSON.parse(document.getElementById('rg-nullable-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+    })`), {
+      aChecked: false,
+      bChecked: true,
+      model: 'b',
+      formData: { 'nullable-choice': 'b' }
+    });
+    await evaluate(`document.getElementById('rg-nullable-reset-btn').focus()`);
+    await key('Enter', 'Enter', 13);
+    await evaluate(`new Promise((resolve) => setTimeout(resolve, 0))`);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-null-a').checked,
+      bChecked: document.getElementById('rg-null-b').checked,
+      model: JSON.parse(document.getElementById('rg-nullable-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+    })`), {
+      aChecked: false,
+      bChecked: false,
+      model: null,
+      formData: {}
+    });
+    // Re-select, programmatically clear to null, and re-select again.
+    await mouseClick('rg-null-b-label');
+    await evaluate(`document.getElementById('rg-nullable-clear').click(); Promise.resolve()`);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-null-a').checked,
+      bChecked: document.getElementById('rg-null-b').checked,
+      model: JSON.parse(document.getElementById('rg-nullable-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+    })`), {
+      aChecked: false,
+      bChecked: false,
+      model: null,
+      formData: {}
+    });
+    await mouseClick('rg-null-a-label');
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-null-a').checked,
+      bChecked: document.getElementById('rg-null-b').checked,
+      model: JSON.parse(document.getElementById('rg-nullable-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+    })`), {
+      aChecked: true,
+      bChecked: false,
+      model: 'a',
+      formData: { 'nullable-choice': 'a' }
+    });
+  });
+
+  // Verify Checkbox trusted label click, programmatic indeterminate update, and aria-describedby.
+  await runCase('checkbox: trusted label click and programmatic indeterminate update', async () => {
+    await mouseClick('cb-controlled-label');
+    assert.deepEqual(await evaluate(`({
+      checked: document.getElementById('cb-controlled').checked,
+      output: document.getElementById('cb-controlled-value').value,
+      describedBy: document.getElementById('cb-controlled').getAttribute('aria-describedby')
+    })`), {
+      checked: true,
+      output: 'true',
+      describedBy: 'cb-controlled-help'
+    });
+    await evaluate(`document.getElementById('cb-set-indeterminate').click(); Promise.resolve()`);
+    assert.deepEqual(await evaluate(`({
+      indeterminate: document.getElementById('cb-controlled').indeterminate,
+      matches: document.getElementById('cb-controlled').matches(':indeterminate'),
+      output: document.getElementById('cb-indeterminate-value').value
+    })`), {
+      indeterminate: true,
+      matches: true,
+      output: 'true'
+    });
+  });
+
+  // Verify nested RadioGroups, external form-associated RadioGroup, and standalone Radio.
+  await runCase('radio-group: nested groups, external form owner, and standalone Radio', async () => {
+    await evaluate(`
+      document.getElementById('rg-outer-b').click();
+      document.getElementById('rg-inner-b').click();
+      Promise.resolve();
+    `);
+    assert.deepEqual(await evaluate(`({
+      outer: JSON.parse(document.getElementById('rg-outer-nested-value').value),
+      inner: JSON.parse(document.getElementById('rg-inner-nested-value').value)
+    })`), { outer: 'outer-b', inner: 'inner-b' });
+    await evaluate(`
+      document.getElementById('rg-nested-outer-form').reset();
+      new Promise((resolve) => setTimeout(resolve, 0));
+    `);
+    assert.deepEqual(await evaluate(`({
+      outer: JSON.parse(document.getElementById('rg-outer-nested-value').value),
+      inner: JSON.parse(document.getElementById('rg-inner-nested-value').value),
+      outerA: document.getElementById('rg-outer-a').checked,
+      innerA: document.getElementById('rg-inner-a').checked
+    })`), { outer: 'outer-a', inner: 'inner-a', outerA: true, innerA: true });
+
+    await evaluate(`document.getElementById('rg-ext-b').click(); Promise.resolve()`);
+    assert.deepEqual(await evaluate(`({
+      model: JSON.parse(document.getElementById('rg-external-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-external-form')))
+    })`), { model: 'ext-b', formData: { 'external-choice': 'ext-b' } });
+    await evaluate(`
+      document.getElementById('rg-external-form').reset();
+      new Promise((resolve) => setTimeout(resolve, 0));
+    `);
+    assert.deepEqual(await evaluate(`({
+      model: JSON.parse(document.getElementById('rg-external-value').value),
+      aChecked: document.getElementById('rg-ext-a').checked,
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-external-form')))
+    })`), { model: 'ext-a', aChecked: true, formData: { 'external-choice': 'ext-a' } });
+
+    await evaluate(`document.getElementById('standalone-b').click(); Promise.resolve()`);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('standalone-a').checked,
+      bChecked: document.getElementById('standalone-b').checked,
+      formData: Object.fromEntries(new FormData(document.getElementById('standalone-radio-form')))
+    })`), { aChecked: false, bChecked: true, formData: { standalone: 'b' } });
+    await evaluate(`document.getElementById('standalone-radio-form').reset(); Promise.resolve()`);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('standalone-a').checked,
+      bChecked: document.getElementById('standalone-b').checked,
+      formData: Object.fromEntries(new FormData(document.getElementById('standalone-radio-form')))
+    })`), { aChecked: true, bChecked: false, formData: { standalone: 'a' } });
+  });
+
+  assert.deepEqual(pageErrors, [], 'unexpected browser runtime or console errors');
   console.log(`Component fixture passed in ${executable}.`);
 } finally {
   rejectPending(new Error('Component fixture is shutting down'));

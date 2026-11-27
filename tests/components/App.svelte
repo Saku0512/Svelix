@@ -34,6 +34,9 @@
   let rgDefaultVal = $state('custom');
   let rgExplicitUnchecked = $state<string | null>('a');
   let rgNullable = $state<string | null>(null);
+  let rgOuterNested = $state<string | null>('outer-a');
+  let rgInnerNested = $state<string | null>('inner-a');
+  let rgExternalValue = $state<string | null>('ext-a');
 </script>
 
 <section data-svelix-theme="light">
@@ -369,21 +372,34 @@
     }}
   >
     <span id="selection-tab-start" tabindex="-1"></span>
-    <label for="cb-controlled">Controlled checkbox</label>
+    <label id="cb-controlled-label" for="cb-controlled">Controlled checkbox</label>
     <Checkbox
       id="cb-controlled"
       name="cb-controlled"
       value="yes"
+      aria-describedby="cb-controlled-help"
       bind:checked={cbControlled}
       bind:indeterminate={cbIndeterminate}
       onchange={() => (cbChanges += 1)}
     />
+    <span id="cb-controlled-help">Required for confirmation.</span>
+    <Button
+      id="cb-set-indeterminate"
+      type="button"
+      variant="secondary"
+      onclick={() => {
+        cbIndeterminate = true;
+      }}
+    >Set indeterminate</Button>
     <label for="cb-disabled">Disabled checkbox</label>
     <Checkbox id="cb-disabled" name="cb-disabled" value="no" disabled checked />
-    <label>
+    <label id="cb-uncontrolled-label">
       <Checkbox id="cb-uncontrolled" name="cb-uncontrolled" value="on" defaultChecked />
       Uncontrolled checkbox
     </label>
+    <label for="cb-invalid">Invalid checkbox</label>
+    <Checkbox id="cb-invalid" aria-invalid={true} aria-describedby="cb-invalid-error" />
+    <span id="cb-invalid-error">Accept to continue.</span>
 
     <RadioGroup id="rg-plan" legend="Billing plan" name="plan" bind:value={rgPlan}>
       <label>
@@ -475,8 +491,8 @@
       name="nullable-choice"
       bind:value={rgNullable}
     >
-      <label><Radio id="rg-null-a" value="a" /> Choice A</label>
-      <label><Radio id="rg-null-b" value="b" /> Choice B</label>
+      <label id="rg-null-a-label"><Radio id="rg-null-a" value="a" /> Choice A</label>
+      <label id="rg-null-b-label"><Radio id="rg-null-b" value="b" /> Choice B</label>
     </RadioGroup>
     <Button
       id="rg-nullable-clear"
@@ -486,6 +502,70 @@
         rgNullable = null;
       }}
     >Clear selection</Button>
+    <Button
+      id="rg-nullable-synthetic-reset"
+      type="button"
+      variant="secondary"
+      onclick={() => {
+        document.getElementById('rg-nullable-form')?.dispatchEvent(
+          new Event('reset', { bubbles: true, cancelable: true })
+        );
+      }}
+    >Synthetic reset</Button>
+    <Button
+      id="rg-nullable-canceled-reset"
+      type="button"
+      variant="secondary"
+      onclick={() => {
+        const form = document.getElementById('rg-nullable-form');
+        if (!(form instanceof HTMLFormElement)) return;
+        const cancel = (event: Event) => {
+          event.preventDefault();
+          form.removeEventListener('reset', cancel);
+        };
+        form.addEventListener('reset', cancel);
+        form.reset();
+      }}
+    >Canceled reset</Button>
+    <Button
+      id="rg-nullable-canceled-then-valid"
+      type="button"
+      variant="secondary"
+      onclick={() => {
+        const form = document.getElementById('rg-nullable-form');
+        if (!(form instanceof HTMLFormElement)) return;
+        const cancel = (event: Event) => {
+          event.preventDefault();
+          form.removeEventListener('reset', cancel);
+        };
+        form.addEventListener('reset', cancel);
+        form.reset();
+        form.reset();
+      }}
+    >Canceled then valid reset</Button>
+    <Button id="rg-nullable-reset-btn" type="reset" variant="ghost">Reset nullable</Button>
+  </form>
+
+  <form id="rg-nested-outer-form">
+    <RadioGroup id="rg-nested-outer" legend="Outer group" name="outer-choice" bind:value={rgOuterNested}>
+      <label><Radio id="rg-outer-a" value="outer-a" /> Outer A</label>
+      <label><Radio id="rg-outer-b" value="outer-b" /> Outer B</label>
+      <RadioGroup id="rg-nested-inner" legend="Inner group" name="inner-choice" bind:value={rgInnerNested}>
+        <label><Radio id="rg-inner-a" value="inner-a" /> Inner A</label>
+        <label><Radio id="rg-inner-b" value="inner-b" /> Inner B</label>
+      </RadioGroup>
+    </RadioGroup>
+  </form>
+
+  <form id="rg-external-form"></form>
+  <RadioGroup id="rg-external" legend="External form group" name="external-choice" bind:value={rgExternalValue}>
+    <label><Radio id="rg-ext-a" value="ext-a" form="rg-external-form" /> External A</label>
+    <label><Radio id="rg-ext-b" value="ext-b" form="rg-external-form" /> External B</label>
+  </RadioGroup>
+
+  <form id="standalone-radio-form">
+    <label><Radio id="standalone-a" name="standalone" value="a" defaultChecked /> Standalone A</label>
+    <label><Radio id="standalone-b" name="standalone" value="b" /> Standalone B</label>
   </form>
 
   <output id="keyboard-count">{keyboardActivations}</output>
@@ -516,10 +596,13 @@
   <output id="rg-changes-value">{rgChanges}</output>
   <output id="rg-submissions-value">{rgSubmissions}</output>
   <output id="rg-unnamed-value">{rgUnnamed}</output>
-  <output id="rg-cross-owner-value">{rgCrossOwner === null ? 'null' : rgCrossOwner}</output>
+  <output id="rg-cross-owner-value">{JSON.stringify(rgCrossOwner)}</output>
   <output id="rg-default-val-value">{rgDefaultVal}</output>
-  <output id="rg-explicit-unchecked-value">{rgExplicitUnchecked === null ? 'null' : rgExplicitUnchecked}</output>
-  <output id="rg-nullable-value">{rgNullable === null ? 'null' : rgNullable}</output>
+  <output id="rg-explicit-unchecked-value">{JSON.stringify(rgExplicitUnchecked)}</output>
+  <output id="rg-nullable-value">{JSON.stringify(rgNullable)}</output>
+  <output id="rg-outer-nested-value">{JSON.stringify(rgOuterNested)}</output>
+  <output id="rg-inner-nested-value">{JSON.stringify(rgInnerNested)}</output>
+  <output id="rg-external-value">{JSON.stringify(rgExternalValue)}</output>
 </section>
 
 <section data-svelix-theme="dark" id="dark-theme">

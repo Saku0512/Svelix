@@ -108,8 +108,14 @@ const invalidButton: ComponentProps<typeof Button> = { variant: 'danger' };
 const invalidInput: ComponentProps<typeof Input> = { children: () => {} };
 // @ts-expect-error Checkbox fixes input type to checkbox
 const invalidCheckboxType: ComponentProps<typeof Checkbox> = { type: 'text' };
+// @ts-expect-error Checkbox cannot accept children
+const invalidCheckboxChildren: ComponentProps<typeof Checkbox> = { children: () => {} };
 // @ts-expect-error Radio fixes input type to radio
 const invalidRadioType: ComponentProps<typeof Radio> = { type: 'checkbox' };
+// @ts-expect-error Radio cannot accept children
+const invalidRadioChildren: ComponentProps<typeof Radio> = { children: () => {} };
+// @ts-expect-error RadioGroup value must be string | null | undefined
+const invalidRadioGroupValue: ComponentProps<typeof RadioGroup> = { value: 123 };
 void [
   button,
   input,
@@ -125,7 +131,10 @@ void [
   invalidButton,
   invalidInput,
   invalidCheckboxType,
-  invalidRadioType
+  invalidCheckboxChildren,
+  invalidRadioType,
+  invalidRadioChildren,
+  invalidRadioGroupValue
 ];
 `);
   writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({
@@ -135,14 +144,14 @@ void [
   execFileSync(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '-p', fixture], { stdio: 'inherit' });
   writeFileSync(join(fixture, 'index.html'), '<div id="app"></div><script type="module" src="/main.js"></script>');
   writeFileSync(join(fixture, 'main.js'), "import 'svelix';\nimport 'svelix/styles.css';\nimport App from './App.svelte';\nimport { mount } from 'svelte';\nmount(App, { target: document.getElementById('app') });\n");
-  writeFileSync(join(fixture, 'App.svelte'), `<script>
+  writeFileSync(join(fixture, 'App.svelte'), `<script lang="ts">
   import { Button, Checkbox, Input, Radio, RadioGroup } from 'svelix';
   let email = $state('');
   let size = $state('m');
-  let toppings = $state([]);
+  let toppings = $state<string[]>([]);
   let terms = $state(false);
   let mixed = $state(true);
-  let plan = $state('pro');
+  let plan = $state<string | null>(null);
 </script>
 
 <form>
@@ -153,9 +162,14 @@ void [
   <Input type="checkbox" value="rice" bind:group={toppings} />
   <Input type="radio" name="plain" value="b" checked />
   <label><Checkbox name="terms" value="yes" bind:checked={terms} bind:indeterminate={mixed} /> Terms</label>
+  <label><Checkbox name="updates" defaultChecked /> Updates</label>
   <RadioGroup legend="Plan" name="plan" bind:value={plan}>
     <label><Radio value="basic" /> Basic</label>
-    <label><Radio value="pro" /> Pro</label>
+    <label><Radio value="pro" disabled /> Pro</label>
+  </RadioGroup>
+  <RadioGroup name="delivery">
+    {#snippet legend()}Delivery{/snippet}
+    <label><Radio value="standard" defaultChecked /> Standard</label>
   </RadioGroup>
   <Button variant="outline">Submit</Button>
 </form>
