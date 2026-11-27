@@ -131,7 +131,11 @@ try {
     }
   }
 
-  const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+  const targets = await (
+    await fetch(`http://127.0.0.1:${debugPort}/json/list`, {
+      signal: AbortSignal.timeout(SOCKET_OPEN_MS)
+    })
+  ).json();
   const page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
   if (!page) throw new Error('Chrome did not expose a page target');
 
