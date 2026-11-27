@@ -1,0 +1,56 @@
+name: Feature request
+description: Propose a focused improvement to Svelix.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Svelix prioritizes small, composable, native solutions.
+        Explain the problem first; proposed implementation details are optional.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What limitation or user problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior or API you would like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds or alternative approaches have you considered?
+    validations:
+      required: false
+  - type: textarea
+    id: philosophy
+    attributes:
+      label: Fit with Svelix principles
+      description: How does this support simplicity, composability, native web APIs, or compile-time optimization?
+    validations:
+      required: false
+  - type: textarea
+    id: examples
+    attributes:
+      label: Usage example
+      description: Add a short example of how you imagine this feature being used.
+      render: svelte
+    validations:
+      required: false
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for similar proposals.
+          required: true
+        - label: This proposal addresses a concrete use case.
+          required: true
