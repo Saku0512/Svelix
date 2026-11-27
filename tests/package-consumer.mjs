@@ -38,7 +38,7 @@ try {
     throw new Error(`Expected consumer Svelte 5.59.0, got ${installedSvelte.version}`);
   }
   writeFileSync(join(fixture, 'consumer.ts'), `import type { ComponentProps } from 'svelte';
-import { Button, Checkbox, Input, Radio, RadioGroup } from 'svelix';
+import { Button, Checkbox, Input, Label, Radio, RadioGroup, Separator } from 'svelix';
 
 const button: ComponentProps<typeof Button> = {
   variant: 'outline',
@@ -102,6 +102,16 @@ const svelixRadio: ComponentProps<typeof Radio> = {
   disabled: false,
   onchange: (event) => event.currentTarget.value
 };
+const svelixLabel: ComponentProps<typeof Label> = {
+  for: 'email',
+  form: 'account-form',
+  onclick: (event) => event.currentTarget.htmlFor
+};
+const svelixSeparator: ComponentProps<typeof Separator> = {
+  orientation: 'vertical',
+  decorative: true,
+  'aria-label': 'Divider'
+};
 // @ts-expect-error variants are intentionally limited
 const invalidButton: ComponentProps<typeof Button> = { variant: 'danger' };
 // @ts-expect-error native input elements cannot have children
@@ -116,6 +126,10 @@ const invalidRadioType: ComponentProps<typeof Radio> = { type: 'checkbox' };
 const invalidRadioChildren: ComponentProps<typeof Radio> = { children: () => {} };
 // @ts-expect-error RadioGroup value must be string | null | undefined
 const invalidRadioGroupValue: ComponentProps<typeof RadioGroup> = { value: 123 };
+// @ts-expect-error Separator orientation is limited to horizontal | vertical
+const invalidSeparatorOrientation: ComponentProps<typeof Separator> = { orientation: 'diagonal' };
+// @ts-expect-error Separator renders a void <hr> and cannot accept children
+const invalidSeparatorChildren: ComponentProps<typeof Separator> = { children: () => {} };
 void [
   button,
   input,
@@ -128,13 +142,17 @@ void [
   svelixRadioGroup,
   svelixEmptyRadioGroup,
   svelixRadio,
+  svelixLabel,
+  svelixSeparator,
   invalidButton,
   invalidInput,
   invalidCheckboxType,
   invalidCheckboxChildren,
   invalidRadioType,
   invalidRadioChildren,
-  invalidRadioGroupValue
+  invalidRadioGroupValue,
+  invalidSeparatorOrientation,
+  invalidSeparatorChildren
 ];
 `);
   writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({
@@ -145,7 +163,7 @@ void [
   writeFileSync(join(fixture, 'index.html'), '<div id="app"></div><script type="module" src="/main.js"></script>');
   writeFileSync(join(fixture, 'main.js'), "import 'svelix';\nimport 'svelix/styles.css';\nimport App from './App.svelte';\nimport { mount } from 'svelte';\nmount(App, { target: document.getElementById('app') });\n");
   writeFileSync(join(fixture, 'App.svelte'), `<script lang="ts">
-  import { Button, Checkbox, Input, Radio, RadioGroup } from 'svelix';
+  import { Button, Checkbox, Input, Label, Radio, RadioGroup, Separator } from 'svelix';
   let email = $state('');
   let size = $state('m');
   let toppings = $state<string[]>([]);
@@ -154,23 +172,25 @@ void [
   let plan = $state<string | null>(null);
 </script>
 
-<form>
-  <label for="email">Email</label>
+<form id="account-form">
+  <Label for="email">Email</Label>
   <Input id="email" name="email" type="email" autocomplete="email" bind:value={email} required />
+  <Separator />
   <Input type="radio" name="size" value="s" bind:group={size} />
   <Input type="radio" name="size" value="m" bind:group={size} />
   <Input type="checkbox" value="rice" bind:group={toppings} />
   <Input type="radio" name="plain" value="b" checked />
-  <label><Checkbox name="terms" value="yes" bind:checked={terms} bind:indeterminate={mixed} /> Terms</label>
-  <label><Checkbox name="updates" defaultChecked /> Updates</label>
+  <Label><Checkbox name="terms" value="yes" bind:checked={terms} bind:indeterminate={mixed} /> Terms</Label>
+  <Label><Checkbox name="updates" defaultChecked /> Updates</Label>
   <RadioGroup legend="Plan" name="plan" bind:value={plan}>
-    <label><Radio value="basic" /> Basic</label>
-    <label><Radio value="pro" disabled /> Pro</label>
+    <Label><Radio value="basic" /> Basic</Label>
+    <Label><Radio value="pro" disabled /> Pro</Label>
   </RadioGroup>
   <RadioGroup name="delivery">
     {#snippet legend()}Delivery{/snippet}
-    <label><Radio value="standard" defaultChecked /> Standard</label>
+    <Label><Radio value="standard" defaultChecked /> Standard</Label>
   </RadioGroup>
+  <Separator orientation="vertical" decorative />
   <Button variant="outline">Submit</Button>
 </form>
 `);

@@ -258,7 +258,30 @@ try {
     }
   };
 
+  const getAxNode = async (id) => {
+    const resolved = await send('Runtime.evaluate', {
+      expression: `document.getElementById(${JSON.stringify(id)})`,
+      returnByValue: false
+    });
+    if (!resolved.result?.objectId) throw new Error(`Element #${id} not found for AX inspection`);
+    const { nodes } = await send('Accessibility.getPartialAXTree', {
+      objectId: resolved.result.objectId,
+      fetchRelatives: false
+    });
+    const node = nodes.find((item) => !item.ignored) ?? nodes[0];
+    const props = Object.fromEntries(
+      (node?.properties ?? []).map((prop) => [prop.name, prop.value?.value])
+    );
+    return {
+      ignored: Boolean(node?.ignored),
+      role: node?.role?.value ?? null,
+      name: node?.name?.value ?? null,
+      properties: props
+    };
+  };
+
   await send('Runtime.enable');
+  await send('Accessibility.enable');
   await send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
   const deadline = Date.now() + 8000;
   while (Date.now() < deadline) {
@@ -1450,6 +1473,188 @@ try {
       bChecked: document.getElementById('standalone-b').checked,
       formData: Object.fromEntries(new FormData(document.getElementById('standalone-radio-form')))
     })`), { aChecked: true, bChecked: false, formData: { standalone: 'a' } });
+  });
+
+  // Verify Label semantics, native `for` and wrapping associations, absence of hidden IDs, and scoped styles.
+  await runCase('label: semantic HTML, native associations, click forwarding, and scoped styles', async () => {
+    const labelInfo = await evaluate(`(() => {
+      const labelFor = document.getElementById('svelix-label-for');
+      const labelWrap = document.getElementById('svelix-label-wrap');
+      const labelUnbound = document.getElementById('svelix-label-unbound');
+      const input = document.getElementById('labeled-account-input');
+      const wrappedCb = document.getElementById('labeled-wrap-checkbox');
+      return {
+        tag: labelFor.tagName,
+        htmlFor: labelFor.htmlFor,
+        controlId: labelFor.control?.id,
+        testId: labelFor.dataset.testid,
+        inputLabelText: input.labels[0]?.textContent?.trim(),
+        wrapControlId: labelWrap.control?.id,
+        wrappedCbLabelText: wrappedCb.labels[0]?.textContent?.trim(),
+        unboundHtmlFor: labelUnbound.htmlFor,
+        unboundControl: labelUnbound.control,
+        styles: {
+          lightColor: getComputedStyle(labelFor).color,
+          lightWeight: getComputedStyle(labelFor).fontWeight,
+          plainWeight: getComputedStyle(document.getElementById('plain-label')).fontWeight,
+          customColor: getComputedStyle(document.getElementById('svelix-label-custom')).color,
+          darkColor: getComputedStyle(document.getElementById('dark-label')).color
+        }
+      };
+    })()`);
+    assert.equal(labelInfo.tag, 'LABEL');
+    assert.equal(labelInfo.htmlFor, 'labeled-account-input');
+    assert.equal(labelInfo.controlId, 'labeled-account-input');
+    assert.equal(labelInfo.testId, 'account-label');
+    assert.equal(labelInfo.inputLabelText, 'Account handle');
+    assert.equal(labelInfo.wrapControlId, 'labeled-wrap-checkbox');
+    assert.equal(labelInfo.wrappedCbLabelText, 'Enable notifications');
+    assert.equal(labelInfo.unboundHtmlFor, '', 'Label must not invent hidden `for` attributes');
+    assert.equal(labelInfo.unboundControl, null);
+    assert.equal(labelInfo.styles.lightColor, 'rgb(15, 23, 42)');
+    assert.equal(labelInfo.styles.lightWeight, '500');
+    assert.notEqual(labelInfo.styles.plainWeight, '500', 'Label styles must not leak to plain <label>');
+    assert.equal(labelInfo.styles.customColor, 'rgb(4, 120, 87)');
+    assert.equal(labelInfo.styles.darkColor, 'rgb(248, 250, 252)');
+
+    const inputAx = await getAxNode('labeled-account-input');
+    assert.ok(
+      inputAx.name?.includes('Account handle'),
+      `expected input accessible name to include Label text, got ${JSON.stringify(inputAx.name)}`
+    );
+
+    // Trusted click on `<Label for>` focuses the associated Input and runs `onclick`.
+    await mouseClick('svelix-label-for');
+    assert.deepEqual(await evaluate(`({
+      activeId: document.activeElement?.id,
+      clicks: document.getElementById('label-clicks-value').value
+    })`), {
+      activeId: 'labeled-account-input',
+      clicks: '1'
+    });
+
+    // Trusted click on wrapping `<Label>` toggles the nested Checkbox.
+    await mouseClick('svelix-label-wrap');
+    assert.deepEqual(await evaluate(`({
+      checked: document.getElementById('labeled-wrap-checkbox').checked,
+      bound: document.getElementById('label-wrapped-checked-value').value
+    })`), {
+      checked: true,
+      bound: 'true'
+    });
+  });
+
+  // Verify Separator semantics, orientation, decorative vs semantic AX exposure, and scoped token styles.
+  await runCase('separator: orientation, decorative vs semantic AX tree, dynamic updates, and styles', async () => {
+    const sepDom = await evaluate(`(() => {
+      const h = document.getElementById('sep-horizontal');
+      const dh = document.getElementById('sep-decorative-horizontal');
+      const v = document.getElementById('sep-vertical');
+      const dv = document.getElementById('sep-decorative-vertical');
+      const plain = document.getElementById('plain-hr');
+      const custom = document.getElementById('sep-custom');
+      const dark = document.getElementById('dark-separator');
+      return {
+        h: {
+          tag: h.tagName,
+          roleAttr: h.getAttribute('role'),
+          ariaOrientation: h.getAttribute('aria-orientation'),
+          ariaHidden: h.getAttribute('aria-hidden'),
+          dataSection: h.dataset.section,
+          borderTopWidth: getComputedStyle(h).borderTopWidth,
+          borderTopColor: getComputedStyle(h).borderTopColor,
+          marginTop: getComputedStyle(h).marginTop
+        },
+        dh: {
+          roleAttr: dh.getAttribute('role'),
+          ariaOrientation: dh.getAttribute('aria-orientation'),
+          ariaHidden: dh.getAttribute('aria-hidden')
+        },
+        v: {
+          tag: v.tagName,
+          roleAttr: v.getAttribute('role'),
+          ariaOrientation: v.getAttribute('aria-orientation'),
+          ariaHidden: v.getAttribute('aria-hidden'),
+          ariaLabel: v.getAttribute('aria-label'),
+          borderLeftWidth: getComputedStyle(v).borderLeftWidth,
+          borderLeftColor: getComputedStyle(v).borderLeftColor,
+          marginLeft: getComputedStyle(v).marginLeft,
+          height: v.getBoundingClientRect().height
+        },
+        dv: {
+          roleAttr: dv.getAttribute('role'),
+          ariaOrientation: dv.getAttribute('aria-orientation'),
+          ariaHidden: dv.getAttribute('aria-hidden')
+        },
+        plainBorderTopColor: getComputedStyle(plain).borderTopColor,
+        customBorderTopColor: getComputedStyle(custom).borderTopColor,
+        darkBorderTopColor: getComputedStyle(dark).borderTopColor
+      };
+    })()`);
+
+    assert.deepEqual(sepDom.h, {
+      tag: 'HR',
+      roleAttr: null,
+      ariaOrientation: null,
+      ariaHidden: null,
+      dataSection: 'account',
+      borderTopWidth: '1px',
+      borderTopColor: 'rgb(100, 116, 139)',
+      marginTop: '8px'
+    });
+    assert.deepEqual(sepDom.dh, {
+      roleAttr: null,
+      ariaOrientation: null,
+      ariaHidden: 'true'
+    });
+    assert.equal(sepDom.v.tag, 'HR');
+    assert.equal(sepDom.v.roleAttr, null, 'native <hr> must not add redundant role="separator"');
+    assert.equal(sepDom.v.ariaOrientation, 'vertical');
+    assert.equal(sepDom.v.ariaHidden, null);
+    assert.equal(sepDom.v.ariaLabel, 'Toolbar group divider');
+    assert.equal(sepDom.v.borderLeftWidth, '1px');
+    assert.equal(sepDom.v.borderLeftColor, 'rgb(100, 116, 139)');
+    assert.equal(sepDom.v.marginLeft, '8px');
+    assert.ok(sepDom.v.height >= 16, `vertical separator must stretch/have visible height, got ${sepDom.v.height}`);
+    assert.deepEqual(sepDom.dv, {
+      roleAttr: null,
+      ariaOrientation: null,
+      ariaHidden: 'true'
+    });
+    assert.notEqual(sepDom.plainBorderTopColor, 'rgb(100, 116, 139)', 'Separator styles must not leak to plain <hr>');
+    assert.equal(sepDom.customBorderTopColor, 'rgb(124, 58, 237)');
+    assert.equal(sepDom.darkBorderTopColor, 'rgb(148, 163, 184)');
+
+    const axHorizontal = await getAxNode('sep-horizontal');
+    const axDecorativeH = await getAxNode('sep-decorative-horizontal');
+    const axVertical = await getAxNode('sep-vertical');
+    const axDecorativeV = await getAxNode('sep-decorative-vertical');
+    assert.equal(axHorizontal.ignored, false);
+    assert.equal(axHorizontal.role, 'separator');
+    assert.equal(axDecorativeH.ignored, true, 'decorative horizontal separator must be ignored in AX tree');
+    assert.equal(axVertical.ignored, false);
+    assert.equal(axVertical.role, 'separator');
+    assert.equal(axVertical.name, 'Toolbar group divider');
+    assert.equal(axVertical.properties.orientation, 'vertical');
+    assert.equal(axDecorativeV.ignored, true, 'decorative vertical separator must be ignored in AX tree');
+
+    // Dynamic orientation and decorative transitions update both DOM and AX tree.
+    await evaluate(`document.getElementById('toggle-sep-orientation').click(); Promise.resolve()`);
+    const axDynamicVertical = await getAxNode('sep-dynamic');
+    assert.equal(axDynamicVertical.ignored, false);
+    assert.equal(axDynamicVertical.properties.orientation, 'vertical');
+    assert.equal(
+      await evaluate(`getComputedStyle(document.getElementById('sep-dynamic')).borderLeftWidth`),
+      '1px'
+    );
+
+    await evaluate(`document.getElementById('toggle-sep-decorative').click(); Promise.resolve()`);
+    const axDynamicDecorative = await getAxNode('sep-dynamic');
+    assert.equal(axDynamicDecorative.ignored, true);
+    assert.equal(
+      await evaluate(`document.getElementById('sep-dynamic').getAttribute('aria-orientation')`),
+      null
+    );
   });
 
   assert.deepEqual(pageErrors, [], 'unexpected browser runtime or console errors');
