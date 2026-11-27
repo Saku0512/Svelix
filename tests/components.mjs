@@ -743,6 +743,124 @@ try {
     form: { topping: 'rice' }
   });
 
+  // HTMLFormElement.prototype.reset がマウント・アンマウントを通じて改変されないことを検証する。
+  assert.deepEqual(await evaluate(`(() => {
+    const before = HTMLFormElement.prototype.reset;
+    const isNativeBefore = Function.prototype.toString.call(before).includes('[native code]');
+    document.getElementById('toggle-mountable-group').click();
+    return Promise.resolve().then(() => {
+      const afterUnmount = HTMLFormElement.prototype.reset;
+      document.getElementById('toggle-mountable-group').click();
+      return Promise.resolve().then(() => ({
+        isNativeBefore,
+        sameAfterUnmount: before === afterUnmount,
+        sameAfterRemount: before === HTMLFormElement.prototype.reset
+      }));
+    });
+  })()`), {
+    isNativeBefore: true,
+    sameAfterUnmount: true,
+    sameAfterRemount: true
+  });
+
+  // 同一タスク内でキャンセルされた reset の直後に有効な reset が続いた場合、モデルが同期されることを検証する。
+  await evaluate(`
+    document.getElementById('topping-beans').click();
+    Promise.resolve();
+  `);
+  assert.equal(await evaluate(`document.getElementById('toppings-value').value`), 'rice,beans');
+  await evaluate(`
+    document.getElementById('canceled-then-valid-reset').click();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    rice: document.getElementById('topping-rice').checked,
+    beans: document.getElementById('topping-beans').checked,
+    toppings: document.getElementById('toppings-value').value,
+    form: Object.fromEntries(
+      [...new FormData(document.getElementById('native-form'))].filter(([name]) => name === 'topping')
+    )
+  })`), {
+    rice: true,
+    beans: false,
+    toppings: 'rice',
+    form: { topping: 'rice' }
+  });
+
+  // 同一タスク内で有効な reset が 2 回連続した場合もデフォルトへ正しく同期されることを検証する。
+  await evaluate(`
+    document.getElementById('topping-beans').click();
+    Promise.resolve();
+  `);
+  assert.equal(await evaluate(`document.getElementById('toppings-value').value`), 'rice,beans');
+  await evaluate(`
+    document.getElementById('double-valid-reset').click();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    rice: document.getElementById('topping-rice').checked,
+    beans: document.getElementById('topping-beans').checked,
+    toppings: document.getElementById('toppings-value').value,
+    form: Object.fromEntries(
+      [...new FormData(document.getElementById('native-form'))].filter(([name]) => name === 'topping')
+    )
+  })`), {
+    rice: true,
+    beans: false,
+    toppings: 'rice',
+    form: { topping: 'rice' }
+  });
+
+  // 別フォームのグループ更新がフォーム A の保留中リセットをキャンセルしないことを検証する。
+  await evaluate(`
+    document.getElementById('isolated-a-checkbox').click();
+    Promise.resolve();
+  `);
+  assert.deepEqual(await evaluate(`({
+    aChecked: document.getElementById('isolated-a-checkbox').checked,
+    aGroup: document.getElementById('isolated-a-group').value
+  })`), { aChecked: true, aGroup: 'x' });
+  await evaluate(`
+    document.getElementById('reset-a-then-update-b').click();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    aChecked: document.getElementById('isolated-a-checkbox').checked,
+    aGroup: document.getElementById('isolated-a-group').value,
+    bChecked: document.getElementById('isolated-b-checkbox').checked,
+    bGroup: document.getElementById('isolated-b-group').value
+  })`), {
+    aChecked: false,
+    aGroup: '',
+    bChecked: true,
+    bGroup: 'y'
+  });
+
+  // 同一フォーム内の別グループ更新が他方のグループの保留中リセットをキャンセルしないことを検証する。
+  await evaluate(`
+    document.getElementById('shared-group-one').click();
+    Promise.resolve();
+  `);
+  assert.deepEqual(await evaluate(`({
+    oneChecked: document.getElementById('shared-group-one').checked,
+    oneGroup: document.getElementById('shared-one-group').value
+  })`), { oneChecked: true, oneGroup: 'x' });
+  await evaluate(`
+    document.getElementById('reset-shared-then-update-two').click();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    oneChecked: document.getElementById('shared-group-one').checked,
+    oneGroup: document.getElementById('shared-one-group').value,
+    twoChecked: document.getElementById('shared-group-two').checked,
+    twoGroup: document.getElementById('shared-two-group').value
+  })`), {
+    oneChecked: false,
+    oneGroup: '',
+    twoChecked: true,
+    twoGroup: 'y'
+  });
+
   assert.equal(await evaluate(`document.getElementById('dynamic').type`), 'text');
   assert.equal(await evaluate(`document.getElementById('dynamic').value`), 'switchable');
   await evaluate(`document.getElementById('toggle-dynamic-type').click(); Promise.resolve()`);

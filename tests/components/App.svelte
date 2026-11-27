@@ -12,6 +12,12 @@
   let toppingChanges = $state(0);
   let moveableGroup = $state<string[]>(['x']);
   let moveableFormId = $state('form-a');
+  let isolatedGroupA = $state<string[]>([]);
+  let isolatedGroupB = $state<string[]>([]);
+  let sameFormGroupOne = $state<string[]>([]);
+  let sameFormGroupTwo = $state<string[]>([]);
+  let showMountableGroup = $state(true);
+  let mountableGroup = $state<string[]>([]);
   let uploads = $state<FileList | undefined>();
   let dynamicType = $state<'text' | 'checkbox'>('text');
   let dynamicText = $state('switchable');
@@ -197,6 +203,114 @@
       form.reset();
     }}
   >Canceled reset</Button>
+  <Button
+    id="canceled-then-valid-reset"
+    type="button"
+    variant="secondary"
+    onclick={() => {
+      const form = document.getElementById('native-form');
+      if (!(form instanceof HTMLFormElement)) return;
+      const cancel = (event: Event) => {
+        event.preventDefault();
+        form.removeEventListener('reset', cancel);
+      };
+      form.addEventListener('reset', cancel);
+      form.reset();
+      form.reset();
+    }}
+  >Canceled then valid reset</Button>
+  <Button
+    id="double-valid-reset"
+    type="button"
+    variant="secondary"
+    onclick={() => {
+      const form = document.getElementById('native-form');
+      if (!(form instanceof HTMLFormElement)) return;
+      form.reset();
+      form.reset();
+    }}
+  >Double valid reset</Button>
+
+  <form id="isolated-form-a">
+    <Input
+      id="isolated-a-checkbox"
+      type="checkbox"
+      name="isolated-a"
+      value="x"
+      bind:group={isolatedGroupA}
+      aria-label="Isolated form A checkbox"
+    />
+  </form>
+  <form id="isolated-form-b">
+    <Input
+      id="isolated-b-checkbox"
+      type="checkbox"
+      name="isolated-b"
+      value="y"
+      bind:group={isolatedGroupB}
+      aria-label="Isolated form B checkbox"
+    />
+  </form>
+  <Button
+    id="reset-a-then-update-b"
+    type="button"
+    variant="secondary"
+    onclick={() => {
+      const form = document.getElementById('isolated-form-a');
+      if (form instanceof HTMLFormElement) form.reset();
+      isolatedGroupB = ['y'];
+    }}
+  >Reset A then update B</Button>
+
+  <form id="shared-groups-form">
+    <Input
+      id="shared-group-one"
+      type="checkbox"
+      name="shared-one"
+      value="x"
+      bind:group={sameFormGroupOne}
+      aria-label="Shared form group one"
+    />
+    <Input
+      id="shared-group-two"
+      type="checkbox"
+      name="shared-two"
+      value="y"
+      bind:group={sameFormGroupTwo}
+      aria-label="Shared form group two"
+    />
+  </form>
+  <Button
+    id="reset-shared-then-update-two"
+    type="button"
+    variant="secondary"
+    onclick={() => {
+      const form = document.getElementById('shared-groups-form');
+      if (form instanceof HTMLFormElement) form.reset();
+      sameFormGroupTwo = ['y'];
+    }}
+  >Reset shared then update two</Button>
+
+  <form id="mountable-group-form">
+    {#if showMountableGroup}
+      <Input
+        id="mountable-group-checkbox"
+        type="checkbox"
+        name="mountable"
+        value="m"
+        bind:group={mountableGroup}
+        aria-label="Mountable group checkbox"
+      />
+    {/if}
+  </form>
+  <Button
+    id="toggle-mountable-group"
+    type="button"
+    variant="secondary"
+    onclick={() => {
+      showMountableGroup = !showMountableGroup;
+    }}
+  >Toggle mountable group</Button>
 
   <button id="plain-button">Plain button</button>
   <input id="plain-input" aria-label="Plain input" />
@@ -212,6 +326,10 @@
   <output id="topping-changes">{toppingChanges}</output>
   <output id="moveable-group">{moveableGroup.join(',')}</output>
   <output id="moveable-form">{moveableFormId}</output>
+  <output id="isolated-a-group">{isolatedGroupA.join(',')}</output>
+  <output id="isolated-b-group">{isolatedGroupB.join(',')}</output>
+  <output id="shared-one-group">{sameFormGroupOne.join(',')}</output>
+  <output id="shared-two-group">{sameFormGroupTwo.join(',')}</output>
   <output id="upload-count">{uploads?.length ?? 0}</output>
   <output id="upload-name">{uploads?.[0]?.name ?? ''}</output>
   <output id="dynamic-type">{dynamicType}</output>
