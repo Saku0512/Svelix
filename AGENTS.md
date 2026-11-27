@@ -203,6 +203,52 @@ Do not use pre-release tags as stable releases.
 
 Specification: https://semver.org/spec/v2.0.0.html
 
+## Atomic commits
+
+**One commit, one purpose.** Every development commit MUST represent a single coherent logical change, independently understandable and reviewable, and testable and reversible whenever practical.
+
+### Commit granularity
+
+- Split independent features, components, bug fixes, refactoring, formatting, and maintenance changes into separate commits.
+- Keep implementation, necessary types, directly related tests, documentation, and required dependency or lockfile changes together when they form one coherent change.
+- Do not split a single implementation mechanically by file, function, or line count.
+- Do not combine unrelated changes merely because they belong to the same issue or pull request.
+- Prefer a buildable state with relevant passing tests at every commit. Do not knowingly leave broken intermediate commits in the final PR history.
+- If checks cannot run or an intermediate state is unavoidable, document the limitation explicitly. Never claim unverified checks passed.
+- Keep commits reversible where practical, and make dependencies between commits explicit.
+- Follow Conventional Commits 1.0.0 for every commit message.
+
+### Before committing
+
+1. Inspect the working tree and staged diff.
+2. Identify the single purpose of the proposed commit.
+3. Stage only changes necessary for that purpose, using selective staging when needed.
+4. Run relevant available checks against the intended commit state.
+5. Confirm the staged diff contains no unrelated edits, secrets, or unintended generated artifacts.
+6. Write a specific Conventional Commits message describing the change.
+
+Do not stage or commit unrelated user changes. Do not create empty, vague, or work-in-progress commits as a substitute for coherent history.
+
+### Examples
+
+Good, when each commit represents a complete logical change:
+
+```text
+feat(button): implement native button component
+feat(input): implement native input component
+fix(button): preserve native form submission
+test(forms): cover shared form behavior
+docs(button): document styling customization
+```
+
+Avoid overly broad commits such as `feat: implement all basic UI components` when the components can be implemented independently. Also avoid fragmenting a component into commits such as creating its file, adding its script, and adding its markup when those steps are not independently meaningful.
+
+### Pull request integration
+
+Prefer merge commits when preserving meaningful atomic commit history and PR boundaries is useful. Squash merging is acceptable when the complete PR represents one logical change or its intermediate commits do not provide useful history. Use a Conventional Commits-compliant merge or squash commit message, including for release PRs.
+
+Do not rewrite shared history or force-push shared branches to clean up commits. Follow the branch strategy and maintainer authorization rules.
+
 ## Commit messages
 
 All commit messages MUST follow **Conventional Commits 1.0.0**.
