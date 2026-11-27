@@ -22,6 +22,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test:components": "node tests/components.mjs",
     "test:theme": "node tests/theme.mjs",
+    "test:ssr": "node tests/ssr.mjs",
     "test:package": "node tests/package-consumer.mjs",
     "test:package:clean": "node tests/package-clean.mjs"
   },
