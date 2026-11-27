@@ -1,6 +1,6 @@
-// Ensures dist/ matches the current source tree before running any test that
-// consumes built package artifacts, while avoiding duplicate builds across
-// consecutive test scripts when neither inputs nor dist/ have changed.
+// Ensures dist/ matches the current source tree, build configuration, and
+// locked dependency graph before running tests that consume built artifacts,
+// while avoiding duplicate builds when neither tracked inputs nor dist/ change.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -25,10 +25,10 @@ export function computeSourceSignature(projectRoot) {
   for (const entry of hashDirectory(join(projectRoot, 'src'))) {
     hash.update(`src/${entry}\n`);
   }
-  for (const manifest of ['package.json', 'tsconfig.json']) {
-    const file = join(projectRoot, manifest);
+  for (const trackedFile of ['package.json', 'package-lock.json', 'tsconfig.json']) {
+    const file = join(projectRoot, trackedFile);
     if (existsSync(file)) {
-      hash.update(`${manifest}:`);
+      hash.update(`${trackedFile}:`);
       hash.update(readFileSync(file));
       hash.update('\n');
     }

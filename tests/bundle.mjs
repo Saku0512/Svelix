@@ -117,7 +117,7 @@ try {
   // 1. Verify stale-dist rejection and deduplicated rebuilds in an isolated workspace copy.
   const staleCheckDir = join(workDir, 'stale-check');
   mkdirSync(staleCheckDir, { recursive: true });
-  for (const file of ['package.json', 'tsconfig.json']) {
+  for (const file of ['package.json', 'package-lock.json', 'tsconfig.json']) {
     cpSync(join(root, file), join(staleCheckDir, file));
   }
   cpSync(join(root, 'src'), join(staleCheckDir, 'src'), { recursive: true });
@@ -144,6 +144,17 @@ try {
   );
   assert.equal(buildCount, 1);
 
+  // A lockfile-only change can alter the compiler and packaging toolchain, so it must invalidate dist.
+  const isolatedLockfilePath = join(staleCheckDir, 'package-lock.json');
+  writeFileSync(
+    isolatedLockfilePath,
+    `${readFileSync(isolatedLockfilePath, 'utf8')}\n`
+  );
+  assert.equal(isDistFresh(staleCheckDir, stampFile), false, 'modified lockfile must invalidate earlier dist');
+  assert.equal(ensureFreshDist(staleCheckDir, { stampFile, buildRunner: isolatedBuilder }).rebuilt, true);
+  assert.equal(buildCount, 2);
+  assert.equal(isDistFresh(staleCheckDir, stampFile), true);
+
   // Mutate a source component and prove the earlier dist is immediately flagged stale and rebuilt.
   const isolatedLabelPath = join(staleCheckDir, 'src/lib/Label.svelte');
   writeFileSync(
@@ -152,7 +163,7 @@ try {
   );
   assert.equal(isDistFresh(staleCheckDir, stampFile), false, 'modified source must invalidate earlier dist');
   assert.equal(ensureFreshDist(staleCheckDir, { stampFile, buildRunner: isolatedBuilder }).rebuilt, true);
-  assert.equal(buildCount, 2);
+  assert.equal(buildCount, 3);
   assert.match(
     readFileSync(join(staleCheckDir, 'dist/Label.svelte'), 'utf8'),
     /data-stale-probe="fresh"/,
