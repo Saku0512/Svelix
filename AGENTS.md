@@ -25,7 +25,9 @@ The Unix-inspired approach means focused tools and components that do one job we
 
 ## Current project stage
 
-The repository is at an early stage. Do not assume an implementation, package manager, build system, Svelte major version, public API, or release policy exists unless it is present in the repository.
+The repository is at an early stage. The v0.0 development target is a conventional Svelte UI component library. Do not make a custom compiler, AST transform, or Svelte syntax extension a requirement for v0.0. Keep the implementation compatible with the standard Svelte toolchain. Compiler-related work may be explored separately, but it must not delay or complicate the initial UI library.
+
+Do not assume an implementation, package manager, build system, Svelte major version, public API, or release policy exists unless it is present in the repository.
 
 Before making changes:
 - Inspect the current repository structure, package manifests, README, tests, and existing conventions.
@@ -105,6 +107,31 @@ Before making changes:
 - Review the complete diff for unrelated changes, regressions, and accidental API changes.
 - Run the checks relevant to the change.
 - Summarize what changed, what was tested, and any remaining limitations.
+
+## Release tags and versioning
+
+Svelix uses a simple project-level release tag convention. Release tags are milestones for users and maintainers; do not silently substitute a different versioning policy.
+
+### Release progression
+
+- Use tags in the form `vMAJOR.MINOR`, for example `v1.0`, `v1.1`, and `v2.0`.
+- A major release milestone advances the major number: `v1.0` → `v2.0`. Use this for a substantial new product milestone or a release that intentionally introduces major changes.
+- A maintenance release advances the minor number within the current major line: `v1.0` → `v1.1`. Use this to group minor corrections, maintenance improvements, and security fixes that do not represent the next major product milestone.
+- Continue the same pattern for later releases, for example `v2.0` → `v2.1` → `v3.0`.
+- Do not create a release tag for every commit. A tag marks a reviewed, tested, releasable state.
+
+### Release discipline
+
+- Create release tags only from the intended release commit on the default branch.
+- Before tagging, review the changes since the previous release and confirm relevant tests, type checks, linting, and production builds pass where configured.
+- Update release notes or a changelog with user-visible changes, fixes, security notes, and known limitations.
+- Never move or overwrite an existing release tag. If a release is defective, publish a new, incremented tag with a clear explanation.
+- Do not claim a security fix is complete until the fix and its regression test have been reviewed.
+- Do not create or push tags unless the maintainer explicitly requests the release action.
+
+### SemVer distinction
+
+The `vMAJOR.MINOR` tags above are Svelix's simplified release-label convention, not a complete Semantic Versioning 2.0.0 version. If and when Svelix publishes packages to npm, package versions must use valid SemVer `MAJOR.MINOR.PATCH` values. Keep npm package versions and Git release tags intentionally mapped and document that mapping before the first package publication. Do not infer the mapping or invent patch numbers.
 
 ## Commit messages
 
