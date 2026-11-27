@@ -3,9 +3,9 @@ A compiler-first UI library for Svelte, inspired by the Unix philosophy.  Small,
 
 ## Development
 
-Use Node.js 24 LTS for development. The checks for this revision were run with Node.js 22.23.4 and npm 10.9.9. This is a development-tool requirement, not a statement about consumers' runtime or browser compatibility. Svelix requires Svelte 5.6.0 or newer (`peerDependencies: svelte@^5.6.0`) because Input relies on `defaultValue` / `defaultChecked` form-reset binding behavior introduced in that release. Install the locked dependencies with `npm ci`, then run `npm run check` and `npm run build`. The build writes the distributable package to `dist/`.
+Use Node.js 24 LTS for development. The checks for this revision were run with Node.js 22.23.4 and npm 10.9.9. This is a development-tool requirement, not a statement about consumers' runtime or browser compatibility. Svelix requires Svelte 5.59.0 or newer (`peerDependencies: svelte@^5.59.0`). That is the verified minimum for this repository's toolchain: Input needs `defaultValue` / `defaultChecked` (added in 5.6.0), and the locked `@sveltejs/vite-plugin-svelte@7.3.2` resolves Svelte internals that exist from 5.59.0. `npm run test:package` installs Svelte 5.59.0 into the consumer fixture to exercise that floor. Install the locked dependencies with `npm ci`, then run `npm run check` and `npm run build`. The build writes the distributable package to `dist/`.
 
-After building, run `npm run test:package` to pack the library, install it in a temporary Svelte application, type-check its entry point, and build that application. The test uses npm's local cache for the fixture installation.
+After building, run `npm run test:package` to pack the library, install it in a temporary Svelte application against Svelte 5.59.0, type-check its entry point, and build that application.
 
 Run `npm run test:package:clean` for a clean install and repeat-build comparison of the actual source, followed by a temporary Svelte component to verify generated types and an external application build. It requires npm registry access.
 

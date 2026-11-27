@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { build } from 'vite';
@@ -19,8 +19,9 @@ try {
   const pack = packResult(execFileSync(npm, ['pack', '--json', '--pack-destination', fixture], {
     cwd: root, encoding: 'utf8', shell: process.platform === 'win32'
   }), 'svelix');
+  // Verify the advertised peer floor, not only the locked development release.
   const sveltePack = packResult(execFileSync(npm, [
-    'pack', join(root, 'node_modules/svelte'), '--json', '--pack-destination', fixture
+    'pack', 'svelte@5.59.0', '--json', '--pack-destination', fixture
   ], { cwd: root, encoding: 'utf8', shell: process.platform === 'win32' }), 'svelte');
   writeFileSync(join(fixture, 'package.json'), JSON.stringify({
     name: 'svelix-consumer-fixture', version: '0.0.0', private: true, type: 'module',
@@ -29,9 +30,13 @@ try {
       svelte: `file:${sveltePack.filename}`
     }
   }));
-  execFileSync(npm, ['install', '--ignore-scripts', '--offline', '--no-audit', '--no-fund'], {
+  execFileSync(npm, ['install', '--ignore-scripts', '--no-audit', '--no-fund'], {
     cwd: fixture, stdio: 'inherit', shell: process.platform === 'win32'
   });
+  const installedSvelte = JSON.parse(readFileSync(join(fixture, 'node_modules/svelte/package.json'), 'utf8'));
+  if (installedSvelte.version !== '5.59.0') {
+    throw new Error(`Expected consumer Svelte 5.59.0, got ${installedSvelte.version}`);
+  }
   writeFileSync(join(fixture, 'consumer.ts'), `import type { ComponentProps } from 'svelte';
 import { Button, Input } from 'svelix';
 
@@ -104,7 +109,7 @@ void [button, input, checkbox, radio, unboundRadio, checkboxGroup, file, invalid
 </form>
 `);
   await build({ root: fixture, configFile: false, plugins: [svelte()], build: { outDir: resolve(fixture, 'output') } });
-  console.log('External Svelte consumer build passed.');
+  console.log(`External Svelte ${installedSvelte.version} consumer build passed.`);
 } finally {
   rmSync(fixture, { recursive: true, force: true });
 }
