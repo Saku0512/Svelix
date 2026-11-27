@@ -108,9 +108,17 @@ const svelixLabel: ComponentProps<typeof Label> = {
   onclick: (event) => event.currentTarget.htmlFor
 };
 const svelixSeparator: ComponentProps<typeof Separator> = {
+  id: 'main-divider',
   orientation: 'vertical',
-  decorative: true,
   'aria-label': 'Divider'
+};
+const svelixDecorativeSeparator: ComponentProps<typeof Separator> = {
+  orientation: 'vertical',
+  decorative: true
+};
+const dynamicDecorativeFlag: boolean = false;
+const svelixDynamicDecorativeSeparator: ComponentProps<typeof Separator> = {
+  decorative: dynamicDecorativeFlag
 };
 // @ts-expect-error variants are intentionally limited
 const invalidButton: ComponentProps<typeof Button> = { variant: 'danger' };
@@ -130,6 +138,16 @@ const invalidRadioGroupValue: ComponentProps<typeof RadioGroup> = { value: 123 }
 const invalidSeparatorOrientation: ComponentProps<typeof Separator> = { orientation: 'diagonal' };
 // @ts-expect-error Separator renders a void <hr> and cannot accept children
 const invalidSeparatorChildren: ComponentProps<typeof Separator> = { children: () => {} };
+// @ts-expect-error decorative Separator must remain non-focusable
+const invalidDecorativeTabindex: ComponentProps<typeof Separator> = { decorative: true, tabindex: 0 };
+// @ts-expect-error static Separator reserves tabindex
+const invalidSemanticTabindex: ComponentProps<typeof Separator> = { tabindex: 0 };
+// @ts-expect-error Separator owns aria-hidden through the decorative prop
+const invalidSeparatorAriaHidden: ComponentProps<typeof Separator> = { 'aria-hidden': 'true' };
+// @ts-expect-error Separator owns aria-orientation through the orientation prop
+const invalidSeparatorAriaOrientation: ComponentProps<typeof Separator> = { 'aria-orientation': 'vertical' };
+// @ts-expect-error Separator owns role semantics through <hr> and decorative
+const invalidSeparatorRole: ComponentProps<typeof Separator> = { role: 'presentation' };
 void [
   button,
   input,
@@ -144,6 +162,8 @@ void [
   svelixRadio,
   svelixLabel,
   svelixSeparator,
+  svelixDecorativeSeparator,
+  svelixDynamicDecorativeSeparator,
   invalidButton,
   invalidInput,
   invalidCheckboxType,
@@ -152,7 +172,12 @@ void [
   invalidRadioChildren,
   invalidRadioGroupValue,
   invalidSeparatorOrientation,
-  invalidSeparatorChildren
+  invalidSeparatorChildren,
+  invalidDecorativeTabindex,
+  invalidSemanticTabindex,
+  invalidSeparatorAriaHidden,
+  invalidSeparatorAriaOrientation,
+  invalidSeparatorRole
 ];
 `);
   writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({

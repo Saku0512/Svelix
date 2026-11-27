@@ -3,7 +3,20 @@
 
   type SeparatorOrientation = 'horizontal' | 'vertical';
 
-  type SeparatorProps = Omit<HTMLAttributes<HTMLHRElement>, 'children'> & {
+  // `Separator` is a static structural divider (<hr>), not an interactive widget.
+  // Component-owned ARIA semantics (`role`, `aria-orientation`, `aria-hidden`) and
+  // focusability attributes (`tabindex`, `autofocus`, `contenteditable`) are reserved
+  // so callers cannot create focusable `aria-hidden` elements or pass silently discarded ARIA.
+  type ReservedSeparatorAttribute =
+    | 'children'
+    | 'role'
+    | 'aria-orientation'
+    | 'aria-hidden'
+    | 'tabindex'
+    | 'autofocus'
+    | 'contenteditable';
+
+  type SeparatorProps = Omit<HTMLAttributes<HTMLHRElement>, ReservedSeparatorAttribute> & {
     /**
      * Visual and semantic axis of the separator. Defaults to `'horizontal'`.
      */
@@ -15,18 +28,47 @@
     decorative?: boolean;
   };
 
+  const RESERVED_KEYS = new Set([
+    'role',
+    'aria-orientation',
+    'aria-hidden',
+    'tabindex',
+    'autofocus',
+    'contenteditable'
+  ]);
+
   let {
     orientation = 'horizontal',
     decorative = false,
     ...rest
   }: SeparatorProps = $props();
+
+  const forwardedAttrs = $derived.by(() => {
+    const clean: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(rest)) {
+      if (!RESERVED_KEYS.has(key.toLowerCase())) {
+        clean[key] = value;
+      }
+    }
+    return clean;
+  });
+
+  function enforceDecorativeHidden(node: HTMLHRElement) {
+    if (decorative) {
+      node.removeAttribute('tabindex');
+      if (typeof document !== 'undefined' && document.activeElement === node) {
+        node.blur();
+      }
+    }
+  }
 </script>
 
 <hr
-  {...rest}
+  {...forwardedAttrs}
   data-svelix-orientation={orientation}
   aria-orientation={!decorative && orientation === 'vertical' ? 'vertical' : undefined}
   aria-hidden={decorative ? 'true' : undefined}
+  {@attach enforceDecorativeHidden}
 />
 
 <style>

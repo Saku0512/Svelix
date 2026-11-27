@@ -1638,7 +1638,57 @@ try {
     assert.equal(axVertical.properties.orientation, 'vertical');
     assert.equal(axDecorativeV.ignored, true, 'decorative vertical separator must be ignored in AX tree');
 
-    // Dynamic orientation and decorative transitions update both DOM and AX tree.
+    // Reserved ARIA and focusability attributes are stripped even if spread dynamically from untyped JS.
+    assert.deepEqual(
+      await evaluate(`(() => {
+        const dyn = document.getElementById('sep-dynamic');
+        const decUntyped = document.getElementById('sep-decorative-untyped-focus');
+        return {
+          dynRole: dyn.getAttribute('role'),
+          dynAriaHidden: dyn.getAttribute('aria-hidden'),
+          dynAriaOrientation: dyn.getAttribute('aria-orientation'),
+          dynTabindex: dyn.getAttribute('tabindex'),
+          dynContentEditable: dyn.getAttribute('contenteditable'),
+          dynAutofocus: dyn.hasAttribute('autofocus'),
+          decRole: decUntyped.getAttribute('role'),
+          decAriaHidden: decUntyped.getAttribute('aria-hidden'),
+          decAriaOrientation: decUntyped.getAttribute('aria-orientation'),
+          decTabindex: decUntyped.getAttribute('tabindex'),
+          decContentEditable: decUntyped.getAttribute('contenteditable'),
+          decAutofocus: decUntyped.hasAttribute('autofocus')
+        };
+      })()`),
+      {
+        dynRole: null,
+        dynAriaHidden: null,
+        dynAriaOrientation: null,
+        dynTabindex: null,
+        dynContentEditable: null,
+        dynAutofocus: false,
+        decRole: null,
+        decAriaHidden: 'true',
+        decAriaOrientation: null,
+        decTabindex: null,
+        decContentEditable: null,
+        decAutofocus: false
+      }
+    );
+
+    // Keyboard traversal: neither semantic nor decorative static separators enter sequential Tab order,
+    // while semantic remains exposed in AX and decorative remains ignored in AX.
+    await evaluate(`document.getElementById('sep-tab-before').focus()`);
+    await key('Tab', 'Tab', 9);
+    assert.equal(
+      await evaluate(`document.activeElement?.id`),
+      'sep-tab-after',
+      'static and decorative separators must never enter sequential Tab navigation'
+    );
+    const axSemanticBeforeToggle = await getAxNode('sep-dynamic');
+    assert.equal(axSemanticBeforeToggle.ignored, false);
+    assert.equal(axSemanticBeforeToggle.role, 'separator');
+    assert.equal((await getAxNode('sep-decorative-untyped-focus')).ignored, true);
+
+    // Dynamic orientation update in semantic mode updates DOM, styles, and AX tree.
     await evaluate(`document.getElementById('toggle-sep-orientation').click(); Promise.resolve()`);
     const axDynamicVertical = await getAxNode('sep-dynamic');
     assert.equal(axDynamicVertical.ignored, false);
@@ -1648,13 +1698,61 @@ try {
       '1px'
     );
 
+    // Transitioning semantic -> decorative hides from AX, clears aria-orientation, and skips Tab.
     await evaluate(`document.getElementById('toggle-sep-decorative').click(); Promise.resolve()`);
-    const axDynamicDecorative = await getAxNode('sep-dynamic');
-    assert.equal(axDynamicDecorative.ignored, true);
-    assert.equal(
-      await evaluate(`document.getElementById('sep-dynamic').getAttribute('aria-orientation')`),
-      null
+    assert.deepEqual(
+      await evaluate(`({
+        ariaOrientation: document.getElementById('sep-dynamic').getAttribute('aria-orientation'),
+        ariaHidden: document.getElementById('sep-dynamic').getAttribute('aria-hidden'),
+        tabindex: document.getElementById('sep-dynamic').getAttribute('tabindex')
+      })`),
+      {
+        ariaOrientation: null,
+        ariaHidden: 'true',
+        tabindex: null
+      }
     );
+    assert.equal((await getAxNode('sep-dynamic')).ignored, true);
+    await evaluate(`document.getElementById('sep-tab-before').focus()`);
+    await key('Tab', 'Tab', 9);
+    assert.equal(await evaluate(`document.activeElement?.id`), 'sep-tab-after');
+    assert.equal((await getAxNode('sep-dynamic')).ignored, true);
+
+    // Switching decorative -> semantic restores AX exposure and vertical orientation.
+    await evaluate(`document.getElementById('toggle-sep-decorative').click(); Promise.resolve()`);
+    const axRestoredSemantic = await getAxNode('sep-dynamic');
+    assert.equal(axRestoredSemantic.ignored, false);
+    assert.equal(axRestoredSemantic.role, 'separator');
+    assert.equal(axRestoredSemantic.properties.orientation, 'vertical');
+
+    // Verify border-drawn separator remains visible under forced-colors: active emulation.
+    await send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'forced-colors', value: 'active' }]
+    });
+    try {
+      const forcedColorsCheck = await evaluate(`(() => {
+        const h = getComputedStyle(document.getElementById('sep-horizontal'));
+        const v = getComputedStyle(document.getElementById('sep-vertical'));
+        return {
+          matches: matchMedia('(forced-colors: active)').matches,
+          hStyle: h.borderTopStyle,
+          hWidth: h.borderTopWidth,
+          vStyle: v.borderLeftStyle,
+          vWidth: v.borderLeftWidth
+        };
+      })()`);
+      assert.deepEqual(forcedColorsCheck, {
+        matches: true,
+        hStyle: 'solid',
+        hWidth: '1px',
+        vStyle: 'solid',
+        vWidth: '1px'
+      });
+    } finally {
+      await send('Emulation.setEmulatedMedia', {
+        features: [{ name: 'forced-colors', value: 'none' }]
+      });
+    }
   });
 
   assert.deepEqual(pageErrors, [], 'unexpected browser runtime or console errors');

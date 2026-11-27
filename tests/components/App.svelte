@@ -49,6 +49,15 @@
   let labelWrappedChecked = $state(false);
   let dynamicSepOrientation = $state<'horizontal' | 'vertical'>('horizontal');
   let dynamicSepDecorative = $state(false);
+
+  const untypedConflictingSpread: Record<string, unknown> = {
+    role: 'button',
+    'aria-hidden': 'true',
+    'aria-orientation': 'vertical',
+    tabindex: 0,
+    autofocus: true,
+    contenteditable: 'true'
+  };
 </script>
 
 <section data-svelix-theme="light">
@@ -611,11 +620,19 @@
     </div>
 
     <Separator id="sep-custom" class="consumer-separator" />
+    <Button id="sep-tab-before" type="button" variant="secondary">Before separators</Button>
     <Separator
       id="sep-dynamic"
       orientation={dynamicSepOrientation}
       decorative={dynamicSepDecorative}
+      {...(untypedConflictingSpread as Record<string, never>)}
     />
+    <Separator
+      id="sep-decorative-untyped-focus"
+      decorative
+      {...(untypedConflictingSpread as Record<string, never>)}
+    />
+    <Button id="sep-tab-after" type="button" variant="secondary">After separators</Button>
     <Button
       id="toggle-sep-orientation"
       type="button"

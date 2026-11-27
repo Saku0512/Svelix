@@ -179,12 +179,12 @@ Always associate each `Checkbox` with a visible `<label>` using `for`/`id` or by
 
 ### Separator
 
-`Separator` renders a native `<hr>` (`Omit<HTMLAttributes<HTMLHRElement>, 'children'>`) styled with borders from `--svelix-border`, `--svelix-border-width`, and `--svelix-spacing-sm` so lines remain visible in forced-colors modes.
+`Separator` renders a static native `<hr>` styled with logical borders from `--svelix-border`, `--svelix-border-width`, and `--svelix-spacing-sm` so lines remain visible in forced-colors modes. It forwards standard `<hr>` attributes except `children`, the component-managed ARIA attributes (`role`, `aria-orientation`, `aria-hidden`—owned exclusively by `orientation` and `decorative`), and focusability attributes (`tabindex`, `autofocus`, `contenteditable`—reserved in TypeScript and stripped at runtime because `Separator` is a non-interactive structural divider rather than a focusable splitter widget).
 
 | Prop | Values | Default | Behavior |
 | --- | --- | --- | --- |
 | `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | Horizontal spans full inline size (`100%`) with block spacing; vertical stretches along the cross axis (`min-block-size: 1em`) with inline spacing. |
-| `decorative` | `boolean` | `false` | `false` exposes the native `<hr>` separator semantics (adding `aria-orientation="vertical"` only when vertical, with no redundant `role="separator"`). `true` sets `aria-hidden="true"` and omits `aria-orientation` so assistive technologies ignore purely visual dividers. |
+| `decorative` | `boolean` | `false` | `false` exposes the native `<hr>` separator semantics (adding `aria-orientation="vertical"` only when vertical, with no redundant `role="separator"`). `true` sets `aria-hidden="true"`, omits `aria-orientation`, and keeps the element non-focusable so assistive technologies always ignore purely visual dividers. |
 
 ```svelte
 <script lang="ts">
