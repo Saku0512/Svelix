@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -13,23 +13,30 @@ const consumer = join(temporary, 'consumer');
 const npm = process.env.npm_execpath;
 if (!npm) throw new Error('Run this test with npm run test:package:clean');
 const runNpm = (args, cwd) => execFileSync(process.execPath, [npm, ...args], { cwd, stdio: 'inherit' });
-const hashes = (directory) => Object.fromEntries(readdirSync(directory).sort().map((name) => [
-  name, createHash('sha256').update(readFileSync(join(directory, name))).digest('hex')
-]));
+const hashes = (directory, prefix = '') => readdirSync(join(directory, prefix), { withFileTypes: true })
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .flatMap((entry) => {
+    const path = join(prefix, entry.name);
+    if (entry.isDirectory()) return hashes(directory, path);
+    if (!entry.isFile()) throw new Error(`Unexpected output entry: ${path}`);
+    return [[path, createHash('sha256').update(readFileSync(join(directory, path))).digest('hex')]];
+  });
 
 try {
-  mkdirSync(join(library, 'src', 'lib'), { recursive: true });
+  mkdirSync(library);
   mkdirSync(consumer);
   for (const file of ['package.json', 'package-lock.json', 'tsconfig.json']) copyFileSync(join(root, file), join(library, file));
-  copyFileSync(join(root, 'src/lib/styles.css'), join(library, 'src/lib/styles.css'));
-  writeFileSync(join(library, 'src/lib/Probe.svelte'), '<script lang="ts">\n  let { message }: { message: string } = $props();\n</script>\n<p>{message}</p>\n');
-  writeFileSync(join(library, 'src/lib/index.ts'), "export { default as Probe } from './Probe.svelte';\n");
+  cpSync(join(root, 'src'), join(library, 'src'), { recursive: true });
   runNpm(['ci', '--ignore-scripts', '--no-audit', '--no-fund'], library);
   runNpm(['run', 'build'], library);
   const first = hashes(join(library, 'dist'));
   rmSync(join(library, 'dist'), { recursive: true });
   runNpm(['run', 'build'], library);
   if (JSON.stringify(first) !== JSON.stringify(hashes(join(library, 'dist')))) throw new Error('Build outputs differ');
+  console.log('Actual package builds matched.');
+  writeFileSync(join(library, 'src/lib/Probe.svelte'), '<script lang="ts">\n  let { message }: { message: string } = $props();\n</script>\n<p>{message}</p>\n');
+  writeFileSync(join(library, 'src/lib/index.ts'), "export { default as Probe } from './Probe.svelte';\n");
+  runNpm(['run', 'build'], library);
   runNpm(['pack', '--pack-destination', consumer], library);
   const version = JSON.parse(readFileSync(join(library, 'package.json'))).version;
   writeFileSync(join(consumer, 'package.json'), JSON.stringify({ name: 'svelix-clean-consumer', private: true, type: 'module', dependencies: { svelix: `file:svelix-${version}.tgz`, svelte: JSON.parse(readFileSync(join(library, 'node_modules/svelte/package.json'))).version } }));
