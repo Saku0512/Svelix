@@ -48,6 +48,8 @@ Input renders a native `<input>`, forwards native attributes and event callbacks
 | `file` | `bind:files` (`FileList`; leave unset initially; do not assign a path string) |
 | other | `bind:value` (supports `defaultValue` form reset) |
 
+`defaultChecked` (and the inferred initial checked/`group` membership used when it is omitted) is snapshotted when the Input instance mounts. Later updates to a reactive `defaultChecked` prop do not change the form-reset baseline. Grouped checkbox reset follows trusted reset-button activation and `HTMLFormElement.reset()`, ignores synthetic `dispatchEvent(new Event('reset'))`, and does not overwrite a newer `group` write that happens immediately after `reset()`.
+
 ```svelte
 <script lang="ts">
   import { Input } from 'svelix';

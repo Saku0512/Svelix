@@ -435,7 +435,7 @@ try {
     Promise.resolve();
   `);
   assert.equal(await evaluate(`document.getElementById('bound-value').value`), 'changed');
-  await evaluate(`document.getElementById('reset').click(); new Promise(requestAnimationFrame)`);
+  await evaluate(`document.getElementById('form-reset').click(); new Promise(requestAnimationFrame)`);
   assert.deepEqual(await evaluate(`({
     input: document.getElementById('bound').value,
     output: document.getElementById('bound-value').value
@@ -472,7 +472,7 @@ try {
       [...new FormData(document.getElementById('native-form'))].filter(([name]) => name === 'plain')
     )
   })`), { a: true, b: false, form: { plain: 'a' } });
-  await mouseClick('reset');
+  await mouseClick('form-reset');
   assert.deepEqual(await evaluate(`({
     a: document.getElementById('plain-radio-a').checked,
     b: document.getElementById('plain-radio-b').checked,
@@ -571,7 +571,7 @@ try {
     name: document.getElementById('upload-name').value,
     files: document.getElementById('upload').files.length
   })`), { count: '1', name: 'hello.txt', files: 1 });
-  await mouseClick('reset');
+  await mouseClick('form-reset');
   assert.deepEqual(await evaluate(`({
     count: document.getElementById('upload-count').value,
     name: document.getElementById('upload-name').value,
@@ -610,7 +610,7 @@ try {
     Promise.resolve();
   `);
   assert.equal(await evaluate(`document.getElementById('toppings-value').value`), 'rice,beans');
-  await evaluate(`document.getElementById('reset').focus()`);
+  await evaluate(`document.getElementById('form-reset').focus()`);
   await key('Enter', 'Enter', 13);
   await evaluate(`new Promise((resolve) => setTimeout(resolve, 0))`);
   assert.deepEqual(await evaluate(`({
@@ -673,6 +673,76 @@ try {
     group: 'x',
     form: { moveable: 'x' }
   });
+
+  // Programmatic reset followed immediately by a new selection must keep the selection.
+  await evaluate(`
+    document.getElementById('topping-beans').click();
+    Promise.resolve();
+  `);
+  assert.equal(await evaluate(`document.getElementById('toppings-value').value`), 'rice,beans');
+  await evaluate(`
+    document.getElementById('reset-then-select').click();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    rice: document.getElementById('topping-rice').checked,
+    beans: document.getElementById('topping-beans').checked,
+    toppings: document.getElementById('toppings-value').value
+  })`), {
+    rice: false,
+    beans: true,
+    toppings: 'beans'
+  });
+
+  // Synthetic reset events must not rewrite the group model.
+  await evaluate(`
+    document.getElementById('synthetic-reset').click();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    rice: document.getElementById('topping-rice').checked,
+    beans: document.getElementById('topping-beans').checked,
+    toppings: document.getElementById('toppings-value').value
+  })`), {
+    rice: false,
+    beans: true,
+    toppings: 'beans'
+  });
+
+  // Canceled native reset must leave the model alone.
+  await evaluate(`
+    document.getElementById('canceled-reset').click();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    rice: document.getElementById('topping-rice').checked,
+    beans: document.getElementById('topping-beans').checked,
+    toppings: document.getElementById('toppings-value').value
+  })`), {
+    rice: false,
+    beans: true,
+    toppings: 'beans'
+  });
+
+  // A real programmatic form.reset() still restores the frozen default afterward.
+  await evaluate(`
+    document.getElementById('native-form').reset();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    rice: document.getElementById('topping-rice').checked,
+    beans: document.getElementById('topping-beans').checked,
+    toppings: document.getElementById('toppings-value').value,
+    form: Object.fromEntries(
+      [...new FormData(document.getElementById('native-form'))].filter(([name]) => name === 'topping')
+    )
+  })`), {
+    rice: true,
+    beans: false,
+    toppings: 'rice',
+    form: { topping: 'rice' }
+  });
+
   assert.equal(await evaluate(`document.getElementById('dynamic').type`), 'text');
   assert.equal(await evaluate(`document.getElementById('dynamic').value`), 'switchable');
   await evaluate(`document.getElementById('toggle-dynamic-type').click(); Promise.resolve()`);

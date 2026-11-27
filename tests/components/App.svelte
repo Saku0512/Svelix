@@ -111,7 +111,8 @@
 
     <Button id="submit" name="intent" value="save">Save</Button>
     <Button id="no-submit" type="button" variant="secondary">No submit</Button>
-    <Button id="reset" type="reset" variant="ghost">Reset</Button>
+    <!-- Avoid id/name "reset": that shadows HTMLFormElement.prototype.reset on the form. -->
+    <Button id="form-reset" type="reset" variant="ghost">Reset</Button>
   </form>
 
   <label for="readonly">Readonly value</label>
@@ -161,6 +162,41 @@
       moveableFormId = moveableFormId === 'form-a' ? 'form-b' : 'form-a';
     }}
   >Reassign form</Button>
+  <Button
+    id="reset-then-select"
+    type="button"
+    variant="secondary"
+    onclick={() => {
+      const form = document.getElementById('native-form');
+      if (form instanceof HTMLFormElement) form.reset();
+      toppings = ['beans'];
+    }}
+  >Reset then select beans</Button>
+  <Button
+    id="synthetic-reset"
+    type="button"
+    variant="secondary"
+    onclick={() => {
+      document.getElementById('native-form')?.dispatchEvent(
+        new Event('reset', { bubbles: true, cancelable: true })
+      );
+    }}
+  >Synthetic reset</Button>
+  <Button
+    id="canceled-reset"
+    type="button"
+    variant="secondary"
+    onclick={() => {
+      const form = document.getElementById('native-form');
+      if (!(form instanceof HTMLFormElement)) return;
+      const cancel = (event: Event) => {
+        event.preventDefault();
+        form.removeEventListener('reset', cancel);
+      };
+      form.addEventListener('reset', cancel);
+      form.reset();
+    }}
+  >Canceled reset</Button>
 
   <button id="plain-button">Plain button</button>
   <input id="plain-input" aria-label="Plain input" />
