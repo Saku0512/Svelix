@@ -1,5 +1,13 @@
 <script lang="ts">
-  import { Button, Checkbox, Input, Radio, RadioGroup } from '../../src/lib/index.js';
+  import {
+    Button,
+    Checkbox,
+    Input,
+    Label,
+    Radio,
+    RadioGroup,
+    Separator
+  } from '../../src/lib/index.js';
 
   let keyboardActivations = $state(0);
   let disabledActivations = $state(0);
@@ -37,6 +45,19 @@
   let rgOuterNested = $state<string | null>('outer-a');
   let rgInnerNested = $state<string | null>('inner-a');
   let rgExternalValue = $state<string | null>('ext-a');
+  let labelClicks = $state(0);
+  let labelWrappedChecked = $state(false);
+  let dynamicSepOrientation = $state<'horizontal' | 'vertical'>('horizontal');
+  let dynamicSepDecorative = $state(false);
+
+  const untypedConflictingSpread: Record<string, unknown> = {
+    role: 'button',
+    'aria-hidden': 'true',
+    'aria-orientation': 'vertical',
+    tabindex: 0,
+    autofocus: true,
+    contenteditable: 'true'
+  };
 </script>
 
 <section data-svelix-theme="light">
@@ -363,6 +384,8 @@
   <input id="plain-input" aria-label="Plain input" />
   <input id="plain-checkbox" type="checkbox" aria-label="Plain checkbox" />
   <fieldset id="plain-fieldset"><legend>Plain group</legend></fieldset>
+  <label id="plain-label" for="plain-input">Plain label</label>
+  <hr id="plain-hr" />
 
   <form
     id="selection-form"
@@ -568,6 +591,66 @@
     <label><Radio id="standalone-b" name="standalone" value="b" /> Standalone B</label>
   </form>
 
+  <form id="label-separator-form">
+    <Label
+      id="svelix-label-for"
+      for="labeled-account-input"
+      data-testid="account-label"
+      onclick={() => (labelClicks += 1)}
+    >Account handle</Label>
+    <Input id="labeled-account-input" name="handle" value="ada" />
+
+    <Label id="svelix-label-wrap">
+      <Checkbox id="labeled-wrap-checkbox" name="wrap-opt" bind:checked={labelWrappedChecked} />
+      Enable notifications
+    </Label>
+
+    <Label id="svelix-label-unbound">Unassociated label text</Label>
+    <Label id="svelix-label-custom" class="consumer-label" for="labeled-account-input">Custom label</Label>
+
+    <Separator id="sep-horizontal" data-section="account" />
+    <Separator id="sep-decorative-horizontal" decorative />
+
+    <div id="sep-toolbar-row" style="display: flex; align-items: center; min-block-size: 2.5rem;">
+      <span>Left item</span>
+      <Separator id="sep-vertical" orientation="vertical" aria-label="Toolbar group divider" />
+      <span>Middle item</span>
+      <Separator id="sep-decorative-vertical" orientation="vertical" decorative />
+      <span>Right item</span>
+    </div>
+
+    <Separator id="sep-custom" class="consumer-separator" />
+    <Button id="sep-tab-before" type="button" variant="secondary">Before separators</Button>
+    <Separator
+      id="sep-dynamic"
+      orientation={dynamicSepOrientation}
+      decorative={dynamicSepDecorative}
+      {...(untypedConflictingSpread as Record<string, never>)}
+    />
+    <Separator
+      id="sep-decorative-untyped-focus"
+      decorative
+      {...(untypedConflictingSpread as Record<string, never>)}
+    />
+    <Button id="sep-tab-after" type="button" variant="secondary">After separators</Button>
+    <Button
+      id="toggle-sep-orientation"
+      type="button"
+      variant="secondary"
+      onclick={() => {
+        dynamicSepOrientation = dynamicSepOrientation === 'horizontal' ? 'vertical' : 'horizontal';
+      }}
+    >Toggle separator orientation</Button>
+    <Button
+      id="toggle-sep-decorative"
+      type="button"
+      variant="secondary"
+      onclick={() => {
+        dynamicSepDecorative = !dynamicSepDecorative;
+      }}
+    >Toggle separator decorative</Button>
+  </form>
+
   <output id="keyboard-count">{keyboardActivations}</output>
   <output id="disabled-count">{disabledActivations}</output>
   <output id="submission-count">{submissions}</output>
@@ -603,6 +686,8 @@
   <output id="rg-outer-nested-value">{JSON.stringify(rgOuterNested)}</output>
   <output id="rg-inner-nested-value">{JSON.stringify(rgInnerNested)}</output>
   <output id="rg-external-value">{JSON.stringify(rgExternalValue)}</output>
+  <output id="label-clicks-value">{labelClicks}</output>
+  <output id="label-wrapped-checked-value">{String(labelWrappedChecked)}</output>
 </section>
 
 <section data-svelix-theme="dark" id="dark-theme">
@@ -613,6 +698,8 @@
   <RadioGroup id="dark-radio-group" legend="Dark options" name="dark-opt">
     <label><Radio id="dark-radio-a" value="a" defaultChecked /> Option A</label>
   </RadioGroup>
+  <Label id="dark-label" for="dark-email">Dark email label</Label>
+  <Separator id="dark-separator" />
 </section>
 
 <style>
@@ -622,6 +709,14 @@
   }
 
   :global(.consumer-input) {
+    --svelix-border: rgb(124 58 237);
+  }
+
+  :global(.consumer-label) {
+    color: rgb(4 120 87);
+  }
+
+  :global(.consumer-separator) {
     --svelix-border: rgb(124 58 237);
   }
 </style>
