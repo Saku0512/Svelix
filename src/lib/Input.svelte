@@ -15,6 +15,10 @@
   // 同じネイティブ reset イベントに反応した兄弟の grouped checkbox を
   // 1 つの macrotask 内でまとめて復元し、イベント単位で分離して扱う。
   const pendingResetEvents = new WeakMap<Event, ResetBatch>();
+
+  // 内部リセット復元が生成した group オブジェクトとそのスナップショットを記録し、
+  // 別フォームの連続リセットによる更新をアプリ書き込みと誤認しないようにする。
+  const resetDrivenSnapshots = new WeakMap<object, unknown[]>();
 </script>
 
 <script lang="ts">
@@ -65,28 +69,40 @@
   // この Input インスタンス自身の保留中リセットエントリーのみを追跡する。
   const pendingEntries = new Set<ResetEntry>();
 
+  function isSameValues(a: unknown[] | null, b: unknown[] | null): boolean {
+    if (a === null || b === null) return a === b;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+
   function hasGroupChanged(
     entry: ResetEntry,
     currentGroup: InputGroup,
     currentValues: unknown[] | null
   ): boolean {
     if (currentGroup !== entry.groupRef) return true;
-    if (currentValues === null || entry.snapshot === null) {
-      return currentValues !== entry.snapshot;
-    }
-    if (currentValues.length !== entry.snapshot.length) return true;
-    for (let i = 0; i < currentValues.length; i += 1) {
-      if (currentValues[i] !== entry.snapshot[i]) return true;
-    }
-    return false;
+    return !isSameValues(currentValues, entry.snapshot);
   }
 
-  // このインスタンスの group がリセット後に更新された場合のみ、
+  function isResetDrivenGroup(
+    currentGroup: InputGroup,
+    currentValues: unknown[] | null
+  ): boolean {
+    if (!currentGroup || typeof currentGroup !== 'object') return false;
+    const expected = resetDrivenSnapshots.get(currentGroup);
+    return expected !== undefined && isSameValues(currentValues, expected);
+  }
+
+  // このインスタンスの group がリセット後にアプリ側で更新された場合のみ、
   // 該当する保留中リセットの復元をキャンセルする。
   $effect(() => {
     if (kind !== 'checkbox' || !usesGroup) return;
     const currentGroup = group;
     const currentValues = Array.isArray(currentGroup) ? [...currentGroup] : null;
+    if (isResetDrivenGroup(currentGroup, currentValues)) return;
     for (const entry of pendingEntries) {
       if (hasGroupChanged(entry, currentGroup, currentValues)) {
         entry.canceled = true;
@@ -94,7 +110,7 @@
     }
   });
 
-  function syncGroupMembership(include: boolean) {
+  function syncGroupMembership(include: boolean, markResetDriven = false) {
     const option = value as string | number | boolean;
     const selected = Array.isArray(group) ? [...group] : [];
     const has = selected.some((item) => item === option);
@@ -102,6 +118,9 @@
     group = include
       ? [...selected, option]
       : selected.filter((item) => item !== option);
+    if (markResetDriven && group && typeof group === 'object') {
+      resetDrivenSnapshots.set(group, Array.isArray(group) ? [...group] : []);
+    }
   }
 
   function handleGroupedCheckboxChange(event: Event & { currentTarget: HTMLInputElement }) {
@@ -129,7 +148,7 @@
         },
         restore: () => {
           if (!node.isConnected || node.form !== form) return;
-          syncGroupMembership(snapshotDefaultChecked);
+          syncGroupMembership(snapshotDefaultChecked, true);
         },
         syncDom: () => {
           if (!node.isConnected || node.form !== form) return;

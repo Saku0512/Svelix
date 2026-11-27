@@ -861,6 +861,31 @@ try {
     twoGroup: 'y'
   });
 
+  // 同じ group を共有する 2 つのフォームを同期的に連続リセットしても互いにキャンセルしないことを検証する。
+  await evaluate(`
+    document.getElementById('cross-shared-a').click();
+    document.getElementById('cross-shared-b').click();
+    Promise.resolve();
+  `);
+  assert.deepEqual(await evaluate(`({
+    aChecked: document.getElementById('cross-shared-a').checked,
+    bChecked: document.getElementById('cross-shared-b').checked,
+    group: document.getElementById('cross-shared-group').value
+  })`), { aChecked: true, bChecked: true, group: 'x,y' });
+  await evaluate(`
+    document.getElementById('reset-cross-shared-both').click();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    aChecked: document.getElementById('cross-shared-a').checked,
+    bChecked: document.getElementById('cross-shared-b').checked,
+    group: document.getElementById('cross-shared-group').value
+  })`), {
+    aChecked: false,
+    bChecked: false,
+    group: ''
+  });
+
   assert.equal(await evaluate(`document.getElementById('dynamic').type`), 'text');
   assert.equal(await evaluate(`document.getElementById('dynamic').value`), 'switchable');
   await evaluate(`document.getElementById('toggle-dynamic-type').click(); Promise.resolve()`);

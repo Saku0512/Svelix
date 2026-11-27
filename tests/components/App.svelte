@@ -16,6 +16,7 @@
   let isolatedGroupB = $state<string[]>([]);
   let sameFormGroupOne = $state<string[]>([]);
   let sameFormGroupTwo = $state<string[]>([]);
+  let crossFormSharedGroup = $state<string[]>([]);
   let showMountableGroup = $state(true);
   let mountableGroup = $state<string[]>([]);
   let uploads = $state<FileList | undefined>();
@@ -291,6 +292,38 @@
     }}
   >Reset shared then update two</Button>
 
+  <form id="cross-shared-form-a">
+    <Input
+      id="cross-shared-a"
+      type="checkbox"
+      name="cross-shared-a"
+      value="x"
+      bind:group={crossFormSharedGroup}
+      aria-label="Cross-form shared group A"
+    />
+  </form>
+  <form id="cross-shared-form-b">
+    <Input
+      id="cross-shared-b"
+      type="checkbox"
+      name="cross-shared-b"
+      value="y"
+      bind:group={crossFormSharedGroup}
+      aria-label="Cross-form shared group B"
+    />
+  </form>
+  <Button
+    id="reset-cross-shared-both"
+    type="button"
+    variant="secondary"
+    onclick={() => {
+      const formA = document.getElementById('cross-shared-form-a');
+      const formB = document.getElementById('cross-shared-form-b');
+      if (formA instanceof HTMLFormElement) formA.reset();
+      if (formB instanceof HTMLFormElement) formB.reset();
+    }}
+  >Reset both cross-shared forms</Button>
+
   <form id="mountable-group-form">
     {#if showMountableGroup}
       <Input
@@ -330,6 +363,7 @@
   <output id="isolated-b-group">{isolatedGroupB.join(',')}</output>
   <output id="shared-one-group">{sameFormGroupOne.join(',')}</output>
   <output id="shared-two-group">{sameFormGroupTwo.join(',')}</output>
+  <output id="cross-shared-group">{crossFormSharedGroup.join(',')}</output>
   <output id="upload-count">{uploads?.length ?? 0}</output>
   <output id="upload-name">{uploads?.[0]?.name ?? ''}</output>
   <output id="dynamic-type">{dynamicType}</output>
