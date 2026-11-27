@@ -108,6 +108,57 @@ Before making changes:
 - Run the checks relevant to the change.
 - Summarize what changed, what was tested, and any remaining limitations.
 
+## Branch strategy
+
+Svelix uses release-oriented development. Apart from the default branch, there are two branch categories: release branches and release-work branches.
+
+### Branch naming
+
+| Category | Format | Example |
+| --- | --- | --- |
+| Default | `main` | `main` |
+| Release | `release_v<version>` | `release_v0.1.0` |
+| Release work | `v<version>/<type>_<description>` | `v0.1.0/feature_button` |
+
+- Use the full target SemVer version (including MAJOR, MINOR, and PATCH).
+- Use lowercase ASCII for work types and descriptions. Use hyphens between words in the description.
+- Supported work types: `feature`, `fix`, `security`, `refactor`, `perf`, `docs`, `test`, `build`, `ci`, and `chore`.
+- Prefer a single focused issue or task per work branch. The description should identify its purpose.
+- Branch types are naming conventions, not commit types. For example, a `feature_` work branch normally uses `feat:` commits according to Conventional Commits 1.0.0.
+
+Examples:
+
+```text
+release_v0.1.0
+v0.1.0/build_package-foundation
+v0.1.0/feature_css-tokens
+v0.1.0/feature_button-and-input
+v0.1.0/test_ssr-and-hydration
+v0.1.0/docs_release-notes
+release_v0.1.1
+v0.1.1/security_dependency-update
+```
+
+### Development workflow
+
+1. Create the release branch from the current `main` for the intended release version.
+2. Create each release-work branch from its corresponding release branch, using the latest integrated changes.
+3. Commit focused changes using Conventional Commits 1.0.0.
+4. Open a pull request from the work branch into the corresponding release branch. Reference the issue and include validation results.
+5. Merge the work PR only after relevant review and checks. Delete completed work branches after merging when appropriate.
+6. Once the release scope and acceptance criteria are satisfied, open a release PR from the release branch into `main`.
+7. After the release PR is approved and merged, create the matching release tag on the intended commit in `main`, subject to the release authorization rules below.
+
+### Safety and maintenance
+
+- Do not develop release features directly on `main` or merge a release-work branch directly into `main`.
+- Do not merge work into a release branch with a different target version.
+- Do not bypass review or failing checks to meet a release deadline.
+- Keep release branches scoped to their intended version; defer unrelated work to a later release.
+- For a patch release, create a new release branch for the patch version and apply the same workflow. If maintaining an older release line is necessary, use the appropriate released tag as the base only with maintainer approval and agree on the integration and tagging strategy before proceeding.
+- Do not force-push shared branches, rewrite published history, delete active release branches, or merge or tag a release without maintainer authorization.
+- Repository administration and initial policy changes may be made directly on `main` when explicitly authorized by the maintainer.
+
 ## Release tags and versioning
 
 Svelix uses **Semantic Versioning 2.0.0 (SemVer)** for release tags and published package versions. Git tags and npm package versions MUST use the same `MAJOR.MINOR.PATCH` version.
