@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "skills": {
+    "svelte-code-writer": {
+      "source": "sveltejs/ai-tools",
+      "commit": "5c3ad9bac30f332e3e539d0a36a2c7822c44def2",
+      "sourceType": "github",
+      "skillPath": "tools/skills/svelte-code-writer/SKILL.md",
+      "computedHash": "8eccb2e23091d482aeaca1c95db6c5aa34d055ac2d0c9797efbbecbe5a8e4fd0"
+    },
+    "svelte-core-bestpractices": {
+      "source": "sveltejs/ai-tools",
+      "commit": "5c3ad9bac30f332e3e539d0a36a2c7822c44def2",
+      "sourceType": "github",
+      "skillPath": "tools/skills/svelte-core-bestpractices/SKILL.md",
+      "computedHash": "32070b91f54f92dba3f6e1739d82bf944c14e7a4a75cfe609a59bf1117c34338"
+    },
+    "svelte-runes": {
+      "source": "full-stack-skills/svelte-skills",
+      "commit": "d49b744629e90852bca5f94e9f71cdef3f72030d",
+      "sourceType": "github",
+      "skillPath": "skills/svelte-runes/SKILL.md",
+      "computedHash": "77edae6bef3e4d3398e39f90c5226ce20c30726cbdaabccc3b431a07c273f91d"
+    },
+    "svelte-styling": {
+      "source": "full-stack-skills/svelte-skills",
+      "commit": "d49b744629e90852bca5f94e9f71cdef3f72030d",
+      "sourceType": "github",
+      "skillPath": "skills/svelte-styling/SKILL.md",
+      "computedHash": "e477404513cc028c1dc62ca7e9f4a43ba00413e1f0f5fa014bda4d03fa227703"
+    },
+    "svelte-template-syntax": {
+      "source": "full-stack-skills/svelte-skills",
+      "commit": "d49b744629e90852bca5f94e9f71cdef3f72030d",
+      "sourceType": "github",
+      "skillPath": "skills/svelte-template-syntax/SKILL.md",
+      "computedHash": "2edcce96c22666ccf8e35cf6554f6c0b323e57ae0c560e143f08af986a276be8"
+    }
+  }
+}
