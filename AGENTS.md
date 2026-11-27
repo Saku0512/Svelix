@@ -313,6 +313,12 @@ Prefer merge commits to preserve meaningful atomic development commits and PR bo
 
 Do not rewrite shared history or force-push shared branches to clean up commits. Follow the branch strategy and maintainer authorization rules.
 
+## Language policy
+
+- English is the primary language of this repository.
+- Write all code comments, JSDoc/TSDoc comments, documentation, commit messages, pull request descriptions, and test descriptions in English.
+- Keep repository artifacts in English even when conversing with the user in another language.
+
 ## Communication
 
 - Be precise and concise.
