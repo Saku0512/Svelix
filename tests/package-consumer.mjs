@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -17,10 +18,43 @@ const packResult = (output, name) => {
   return pack;
 };
 
+const EXPECTED_PACKAGE_FILES = [
+  'CHANGELOG.md',
+  'LICENSE',
+  'README.md',
+  'dist/Button.svelte',
+  'dist/Button.svelte.d.ts',
+  'dist/Checkbox.svelte',
+  'dist/Checkbox.svelte.d.ts',
+  'dist/Input.svelte',
+  'dist/Input.svelte.d.ts',
+  'dist/Label.svelte',
+  'dist/Label.svelte.d.ts',
+  'dist/Radio.svelte',
+  'dist/Radio.svelte.d.ts',
+  'dist/RadioGroup.svelte',
+  'dist/RadioGroup.svelte.d.ts',
+  'dist/Separator.svelte',
+  'dist/Separator.svelte.d.ts',
+  'dist/index.d.ts',
+  'dist/index.js',
+  'dist/radio-group-context.d.ts',
+  'dist/radio-group-context.js',
+  'dist/styles.css',
+  'package.json'
+];
+
 try {
   const pack = packResult(execFileSync(npm, ['pack', '--json', '--pack-destination', fixture], {
     cwd: root, encoding: 'utf8', shell: process.platform === 'win32'
   }), 'svelix');
+  assert.equal(pack.name, 'svelix');
+  assert.equal(pack.version, '0.1.0');
+  assert.deepEqual(
+    pack.files.map((file) => file.path).sort(),
+    [...EXPECTED_PACKAGE_FILES].sort(),
+    'packed files must match the reviewed release allowlist'
+  );
   // Verify the advertised peer floor, not only the locked development release.
   const sveltePack = packResult(execFileSync(npm, [
     'pack', 'svelte@5.59.0', '--json', '--pack-destination', fixture
@@ -39,6 +73,22 @@ try {
   if (installedSvelte.version !== '5.59.0') {
     throw new Error(`Expected consumer Svelte 5.59.0, got ${installedSvelte.version}`);
   }
+  const installedSvelix = JSON.parse(readFileSync(join(fixture, 'node_modules/svelix/package.json'), 'utf8'));
+  assert.equal(installedSvelix.name, 'svelix');
+  assert.equal(installedSvelix.version, '0.1.0');
+  assert.equal(installedSvelix.description, 'A small, composable, native-first UI component library for Svelte 5.');
+  assert.equal(installedSvelix.author, 'Saku0512');
+  assert.equal(installedSvelix.license, 'MIT');
+  assert.equal(installedSvelix.repository?.url, 'git+https://github.com/Saku0512/Svelix.git');
+  assert.equal(installedSvelix.bugs?.url, 'https://github.com/Saku0512/Svelix/issues');
+  assert.equal(installedSvelix.homepage, 'https://github.com/Saku0512/Svelix#readme');
+  assert.equal(installedSvelix.publishConfig?.access, 'public');
+  assert.equal(installedSvelix.publishConfig?.registry, 'https://registry.npmjs.org/');
+  assert.deepEqual(installedSvelix.files, ['dist', 'README.md', 'LICENSE', 'CHANGELOG.md']);
+  assert.equal(installedSvelix.svelte, './dist/index.js');
+  assert.equal(installedSvelix.types, './dist/index.d.ts');
+  assert.deepEqual(Object.keys(installedSvelix.exports).sort(), ['.', './styles.css']);
+  assert.equal(installedSvelix.peerDependencies?.svelte, '^5.59.0');
   writeFileSync(join(fixture, 'consumer.ts'), `import type { ComponentProps } from 'svelte';
 import { Button, Checkbox, Input, Label, Radio, RadioGroup, Separator } from 'svelix';
 
