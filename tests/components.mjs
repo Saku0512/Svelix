@@ -1169,6 +1169,53 @@ try {
     unrelatedChecked: true
   });
 
+  // Verify resetting form B clears B without re-checking A in form A.
+  await evaluate(`
+    document.getElementById('rg-owner-form-b').reset();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    aChecked: document.getElementById('rg-owner-a').checked,
+    bChecked: document.getElementById('rg-owner-b').checked,
+    model: document.getElementById('rg-cross-owner-value').value,
+    formA: Object.fromEntries(new FormData(document.getElementById('rg-owner-form-a'))),
+    formB: Object.fromEntries(new FormData(document.getElementById('rg-owner-form-b')))
+  })`), {
+    aChecked: false,
+    bChecked: false,
+    model: '',
+    formA: { 'unrelated-native': 'u' },
+    formB: {}
+  });
+
+  // Verify explicit defaultChecked={false} on all controlled radios resets to no selection (undefined).
+  assert.deepEqual(await evaluate(`({
+    aChecked: document.getElementById('rg-eu-a').checked,
+    bChecked: document.getElementById('rg-eu-b').checked,
+    model: document.getElementById('rg-explicit-unchecked-value').value,
+    formData: Object.fromEntries(new FormData(document.getElementById('rg-explicit-unchecked-form')))
+  })`), {
+    aChecked: true,
+    bChecked: false,
+    model: 'a',
+    formData: { 'explicit-unchecked': 'a' }
+  });
+  await evaluate(`
+    document.getElementById('rg-explicit-unchecked-form').reset();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    aChecked: document.getElementById('rg-eu-a').checked,
+    bChecked: document.getElementById('rg-eu-b').checked,
+    model: document.getElementById('rg-explicit-unchecked-value').value,
+    formData: Object.fromEntries(new FormData(document.getElementById('rg-explicit-unchecked-form')))
+  })`), {
+    aChecked: false,
+    bChecked: false,
+    model: '',
+    formData: {}
+  });
+
   console.log(`Component fixture passed in ${executable}.`);
 } finally {
   rejectPending(new Error('Component fixture is shutting down'));

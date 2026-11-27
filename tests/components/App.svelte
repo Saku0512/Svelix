@@ -30,8 +30,9 @@
   let rgChanges = $state(0);
   let rgSubmissions = $state(0);
   let rgUnnamed = $state('first');
-  let rgCrossOwner = $state('a');
+  let rgCrossOwner = $state<string | undefined>('a');
   let rgDefaultVal = $state('custom');
+  let rgExplicitUnchecked = $state<string | undefined>('a');
 </script>
 
 <section data-svelix-theme="light">
@@ -454,6 +455,18 @@
   </form>
   <form id="rg-owner-form-b"></form>
 
+  <form id="rg-explicit-unchecked-form">
+    <RadioGroup
+      id="rg-explicit-unchecked"
+      legend="Explicit unchecked defaults"
+      name="explicit-unchecked"
+      bind:value={rgExplicitUnchecked}
+    >
+      <label><Radio id="rg-eu-a" value="a" defaultChecked={false} /> Option A</label>
+      <label><Radio id="rg-eu-b" value="b" defaultChecked={false} /> Option B</label>
+    </RadioGroup>
+  </form>
+
   <output id="keyboard-count">{keyboardActivations}</output>
   <output id="disabled-count">{disabledActivations}</output>
   <output id="submission-count">{submissions}</output>
@@ -482,8 +495,9 @@
   <output id="rg-changes-value">{rgChanges}</output>
   <output id="rg-submissions-value">{rgSubmissions}</output>
   <output id="rg-unnamed-value">{rgUnnamed}</output>
-  <output id="rg-cross-owner-value">{rgCrossOwner}</output>
+  <output id="rg-cross-owner-value">{rgCrossOwner ?? ''}</output>
   <output id="rg-default-val-value">{rgDefaultVal}</output>
+  <output id="rg-explicit-unchecked-value">{rgExplicitUnchecked ?? ''}</output>
 </section>
 
 <section data-svelix-theme="dark" id="dark-theme">

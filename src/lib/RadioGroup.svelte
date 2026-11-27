@@ -116,8 +116,14 @@
                 radio.node.isConnected && radio.node.form !== form && radio.getValue() === value
             );
           if (!activeOwnedByOtherForm) {
-            const defaultRadio = matchingRadios.find((radio) => radio.getDefaultChecked());
-            const nextValue = defaultRadio ? defaultRadio.getValue() : initialValue;
+            let defaultRadio: RegisteredRadio | undefined;
+            for (const radio of matchingRadios) {
+              if (radio.getDefaultChecked()) defaultRadio = radio;
+            }
+            // When no radio in the reset form has a checked default, native reset
+            // leaves the form with no selection (`undefined`) rather than selecting
+            // an initial value that may belong to another form or was explicitly false.
+            const nextValue = defaultRadio ? defaultRadio.getValue() : undefined;
             if (value !== nextValue) {
               applyingReset = true;
               value = nextValue as string;
