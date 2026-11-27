@@ -10,6 +10,8 @@
   let size = $state('m');
   let toppings = $state<string[]>([]);
   let toppingChanges = $state(0);
+  let moveableGroup = $state<string[]>(['x']);
+  let moveableFormId = $state('form-a');
   let uploads = $state<FileList | undefined>();
   let dynamicType = $state<'text' | 'checkbox'>('text');
   let dynamicText = $state('switchable');
@@ -135,6 +137,31 @@
     dynamicType = dynamicType === 'text' ? 'checkbox' : 'text';
   }}>Toggle dynamic type</Button>
 
+  <form id="form-a">
+    <Button id="reset-form-a" type="reset" variant="ghost">Reset A</Button>
+  </form>
+  <form id="form-b">
+    <Button id="reset-form-b" type="reset" variant="ghost">Reset B</Button>
+  </form>
+  <Input
+    id="moveable-topping"
+    type="checkbox"
+    name="moveable"
+    value="x"
+    form={moveableFormId}
+    bind:group={moveableGroup}
+    defaultChecked={true}
+    aria-label="Moveable topping"
+  />
+  <Button
+    id="reassign-form"
+    type="button"
+    variant="secondary"
+    onclick={() => {
+      moveableFormId = moveableFormId === 'form-a' ? 'form-b' : 'form-a';
+    }}
+  >Reassign form</Button>
+
   <button id="plain-button">Plain button</button>
   <input id="plain-input" aria-label="Plain input" />
 
@@ -147,6 +174,8 @@
   <output id="size-value">{size}</output>
   <output id="toppings-value">{toppings.join(',')}</output>
   <output id="topping-changes">{toppingChanges}</output>
+  <output id="moveable-group">{moveableGroup.join(',')}</output>
+  <output id="moveable-form">{moveableFormId}</output>
   <output id="upload-count">{uploads?.length ?? 0}</output>
   <output id="upload-name">{uploads?.[0]?.name ?? ''}</output>
   <output id="dynamic-type">{dynamicType}</output>

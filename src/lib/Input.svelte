@@ -43,34 +43,41 @@
     return Boolean(checked);
   });
 
-  function syncCheckboxGroup(event: Event & { currentTarget: HTMLInputElement }) {
-    syncGroupMembershipFromDom(event.currentTarget);
-  }
-
-  function syncGroupMembershipFromDom(node: HTMLInputElement) {
+  function syncGroupMembership(include: boolean) {
     const option = value as string | number | boolean;
     const selected = Array.isArray(group) ? [...group] : [];
     const has = selected.some((item) => item === option);
-    if (node.checked === has) return;
-    group = node.checked
+    if (include === has) return;
+    group = include
       ? [...selected, option]
       : selected.filter((item) => item !== option);
   }
 
   function handleGroupedCheckboxChange(event: Event & { currentTarget: HTMLInputElement }) {
-    syncCheckboxGroup(event);
+    syncGroupMembership(event.currentTarget.checked);
     onchange?.(event);
   }
 
   function attachGroupedCheckboxReset(node: HTMLInputElement) {
-    const form = node.form;
-    if (!form) return;
+    // Listen on document in capture so ownership can change via the `form`
+    // attribute without rebinding. Defer with a macrotask: in Chromium, a
+    // trusted user reset still observes pre-reset checked state inside a
+    // microtask scheduled from the reset handler. After native reset, the
+    // controlled checked={group} binding can overwrite the DOM again, so
+    // restore membership from the frozen default rather than node.checked.
+    const onReset = (event: Event) => {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement) || node.form !== form) return;
 
-    const onReset = () => {
-      queueMicrotask(() => syncGroupMembershipFromDom(node));
+      setTimeout(() => {
+        if (event.defaultPrevented) return;
+        if (!node.isConnected || node.form !== form) return;
+        syncGroupMembership(snapshotDefaultChecked);
+      }, 0);
     };
-    form.addEventListener('reset', onReset);
-    return () => form.removeEventListener('reset', onReset);
+
+    document.addEventListener('reset', onReset, true);
+    return () => document.removeEventListener('reset', onReset, true);
   }
 </script>
 

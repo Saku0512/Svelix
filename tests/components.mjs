@@ -209,6 +209,32 @@ try {
     await send('Input.dispatchKeyEvent', { type: 'keyDown', ...event, ...text });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', ...event });
   };
+  const mouseClick = async (id) => {
+    const box = await evaluate(`(() => {
+      const element = document.getElementById(${JSON.stringify(id)});
+      element.scrollIntoView({ block: 'center', inline: 'center' });
+      const rect = element.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, id: element.id };
+    })()`);
+    await send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: box.x,
+      y: box.y,
+      button: 'left',
+      buttons: 1,
+      clickCount: 1
+    });
+    await send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: box.x,
+      y: box.y,
+      button: 'left',
+      buttons: 0,
+      clickCount: 1
+    });
+    // Wait for native reset default action and Input's macrotask group sync.
+    await evaluate(`new Promise((resolve) => setTimeout(resolve, 0))`);
+  };
 
   await send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
   const deadline = Date.now() + 8000;
@@ -446,7 +472,7 @@ try {
       [...new FormData(document.getElementById('native-form'))].filter(([name]) => name === 'plain')
     )
   })`), { a: true, b: false, form: { plain: 'a' } });
-  await evaluate(`document.getElementById('reset').click(); new Promise(requestAnimationFrame)`);
+  await mouseClick('reset');
   assert.deepEqual(await evaluate(`({
     a: document.getElementById('plain-radio-a').checked,
     b: document.getElementById('plain-radio-b').checked,
@@ -545,7 +571,7 @@ try {
     name: document.getElementById('upload-name').value,
     files: document.getElementById('upload').files.length
   })`), { count: '1', name: 'hello.txt', files: 1 });
-  await evaluate(`document.getElementById('reset').click(); new Promise(requestAnimationFrame)`);
+  await mouseClick('reset');
   assert.deepEqual(await evaluate(`({
     count: document.getElementById('upload-count').value,
     name: document.getElementById('upload-name').value,
@@ -576,6 +602,76 @@ try {
     beansDefault: false,
     toppings: 'rice',
     form: { topping: 'rice' }
+  });
+
+  // Trusted keyboard activation of reset must also resync group after native defaults.
+  await evaluate(`
+    document.getElementById('topping-beans').click();
+    Promise.resolve();
+  `);
+  assert.equal(await evaluate(`document.getElementById('toppings-value').value`), 'rice,beans');
+  await evaluate(`document.getElementById('reset').focus()`);
+  await key('Enter', 'Enter', 13);
+  await evaluate(`new Promise((resolve) => setTimeout(resolve, 0))`);
+  assert.deepEqual(await evaluate(`({
+    rice: document.getElementById('topping-rice').checked,
+    beans: document.getElementById('topping-beans').checked,
+    toppings: document.getElementById('toppings-value').value,
+    form: Object.fromEntries(
+      [...new FormData(document.getElementById('native-form'))].filter(([name]) => name === 'topping')
+    )
+  })`), {
+    rice: true,
+    beans: false,
+    toppings: 'rice',
+    form: { topping: 'rice' }
+  });
+
+  // Moving form ownership must listen to the new owner, not the mount-time form.
+  assert.deepEqual(await evaluate(`({
+    formAttr: document.getElementById('moveable-topping').getAttribute('form'),
+    formId: document.getElementById('moveable-form').value,
+    checked: document.getElementById('moveable-topping').checked,
+    group: document.getElementById('moveable-group').value
+  })`), {
+    formAttr: 'form-a',
+    formId: 'form-a',
+    checked: true,
+    group: 'x'
+  });
+  await evaluate(`
+    document.getElementById('moveable-topping').click();
+    Promise.resolve();
+  `);
+  assert.deepEqual(await evaluate(`({
+    checked: document.getElementById('moveable-topping').checked,
+    group: document.getElementById('moveable-group').value
+  })`), { checked: false, group: '' });
+  await evaluate(`
+    document.getElementById('reassign-form').click();
+    Promise.resolve();
+  `);
+  assert.equal(await evaluate(`document.getElementById('moveable-form').value`), 'form-b');
+  assert.equal(await evaluate(`document.getElementById('moveable-topping').getAttribute('form')`), 'form-b');
+  await mouseClick('reset-form-a');
+  assert.deepEqual(await evaluate(`({
+    checked: document.getElementById('moveable-topping').checked,
+    group: document.getElementById('moveable-group').value
+  })`), {
+    checked: false,
+    group: ''
+  }, 'resetting the previous form owner must not affect the reassigned control');
+  await mouseClick('reset-form-b');
+  assert.deepEqual(await evaluate(`({
+    checked: document.getElementById('moveable-topping').checked,
+    group: document.getElementById('moveable-group').value,
+    form: Object.fromEntries(
+      [...new FormData(document.getElementById('form-b'))].filter(([name]) => name === 'moveable')
+    )
+  })`), {
+    checked: true,
+    group: 'x',
+    form: { moveable: 'x' }
   });
   assert.equal(await evaluate(`document.getElementById('dynamic').type`), 'text');
   assert.equal(await evaluate(`document.getElementById('dynamic').value`), 'switchable');
