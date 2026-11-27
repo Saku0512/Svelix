@@ -19,13 +19,33 @@ test('rejects non-stable and non-canonical versions', () => {
   }
 });
 
-test('publishes the first version or a version newer than npm latest', () => {
+test('stages the initial package and rejects direct initial publication', () => {
   assert.equal(planStableRelease({
     candidateVersion: '0.1.0',
     latestVersion: null,
     candidatePublished: false,
+    integrityMatches: false,
+    releaseMode: 'stage-first-release'
+  }), 'stage');
+  assert.throws(() => planStableRelease({
+    candidateVersion: '0.1.0',
+    latestVersion: null,
+    candidatePublished: false,
     integrityMatches: false
-  }), 'publish');
+  }), /use stage-first-release/);
+});
+
+test('rejects initial staging after an npm package already exists', () => {
+  assert.throws(() => planStableRelease({
+    candidateVersion: '0.2.0',
+    latestVersion: '0.1.0',
+    candidatePublished: false,
+    integrityMatches: false,
+    releaseMode: 'stage-first-release'
+  }), /only allowed before/);
+});
+
+test('publishes a version newer than npm latest', () => {
   assert.equal(planStableRelease({
     candidateVersion: '0.2.0',
     latestVersion: '0.1.0',

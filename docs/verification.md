@@ -19,7 +19,7 @@ The build writes the distributable package to `dist/`. `npm test` runs the theme
 - `npm run test:components`: verifies native behavior, forms, bindings, styling, keyboard interaction, and Accessibility Tree semantics.
 - `npm run test:ssr`: verifies deterministic server output, hydration, DOM identity, diagnostics, interactions, and form reset.
 - `npm run test:bundle`: verifies production module/CSS elimination for representative imports and reports raw, gzip, and Brotli sizes.
-- `npm run test:release`: verifies stable-version ordering, npm `latest` downgrade prevention, and safe rerun decisions without publishing.
+- `npm run test:release`: verifies stable-version ordering, first-release staging, npm `latest` downgrade prevention, and safe rerun decisions without publishing.
 - `npm run test:package`: packs Svelix, verifies the package contents and metadata, installs it with Svelte 5.59.0, checks public types, and builds a consumer.
 - `npm run test:package:clean`: performs a clean locked install, compares repeat-build output hashes, and builds an external consumer. This command requires registry access.
 

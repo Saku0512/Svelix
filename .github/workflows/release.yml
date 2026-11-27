@@ -3,6 +3,14 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Stage the first npm package or complete a release
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - stage-first-release
       confirmation:
         description: Type RELEASE to tag and publish the package
         required: true
@@ -29,6 +37,7 @@ jobs:
       tag: ${{ steps.release.outputs.tag }}
       source_sha: ${{ steps.release.outputs.source_sha }}
       notes_file: ${{ steps.release.outputs.notes_file }}
+      release_mode: ${{ steps.release.outputs.release_mode }}
     steps:
       - name: Check out release source
         uses: actions/checkout@v7
@@ -42,6 +51,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           GIT_REF: ${{ github.ref }}
           GIT_REF_NAME: ${{ github.ref_name }}
+          RELEASE_MODE: ${{ inputs.operation }}
         shell: bash
         run: |
           set -euo pipefail
@@ -69,6 +79,8 @@ jobs:
           tag="v${version}"
           notes_file="docs/releases/${tag}.md"
           source_sha="$(git rev-parse HEAD)"
+          release_mode="$RELEASE_MODE"
+          if [[ -z "$release_mode" ]]; then release_mode="release"; fi
 
           if [[ ! -f "$notes_file" ]]; then
             echo "::error::Missing release notes: $notes_file"
@@ -92,6 +104,24 @@ jobs:
             if [[ "$source_sha" != "$(git rev-parse origin/main)" ]]; then
               echo "::error::The selected revision is not the current origin/main tip"
               exit 1
+            fi
+
+            if git show-ref --verify --quiet "refs/tags/${tag}"; then
+              tag_sha="$(git rev-list -n 1 "$tag")"
+              if ! git merge-base --is-ancestor "$tag_sha" origin/main; then
+                echo "::error::Existing tag $tag does not point to a commit contained in main"
+                exit 1
+              fi
+              tag_version="$(git show "${tag}:package.json" | node -e "let input='';process.stdin.on('data',chunk=>input+=chunk);process.stdin.on('end',()=>process.stdout.write(JSON.parse(input).version))")"
+              if [[ "$tag_version" != "$version" ]]; then
+                echo "::error::Existing tag $tag contains package version $tag_version instead of $version"
+                exit 1
+              fi
+              if ! git cat-file -e "${tag}:${notes_file}"; then
+                echo "::error::Existing tag $tag does not contain $notes_file"
+                exit 1
+              fi
+              source_sha="$tag_sha"
             fi
           else
             if [[ "$GIT_REF_NAME" != "$tag" ]]; then
@@ -119,6 +149,7 @@ jobs:
             echo "tag=$tag"
             echo "source_sha=$source_sha"
             echo "notes_file=$notes_file"
+            echo "release_mode=$release_mode"
           } >> "$GITHUB_OUTPUT"
 
   verify:
@@ -222,6 +253,13 @@ jobs:
           ref: ${{ needs.prepare.outputs.source_sha }}
           fetch-depth: 0
 
+      - name: Check out current release automation
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: .release-automation
+          persist-credentials: false
+
       - name: Set up Node.js 24 LTS and npm registry
         uses: actions/setup-node@v7
         with:
@@ -229,12 +267,12 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
-      - name: Verify npm trusted-publishing support
+      - name: Verify npm release-command support
         shell: bash
         run: |
           set -euo pipefail
           npm_version="$(npm --version)"
-          node -e "const [major, minor] = process.argv[1].split('.').map(Number); if (major < 11 || (major === 11 && minor < 5)) { console.error('npm 11.5.1 or newer is required for trusted publishing'); process.exit(1); }" "$npm_version"
+          node -e "const [major, minor] = process.argv[1].split('.').map(Number); if (major < 11 || (major === 11 && minor < 15)) { console.error('npm 11.15.0 or newer is required for staged and trusted publishing'); process.exit(1); }" "$npm_version"
 
       - name: Download verified release archive
         uses: actions/download-artifact@v8
@@ -276,6 +314,7 @@ jobs:
           LOCAL_INTEGRITY: ${{ needs.verify.outputs.package_integrity }}
           PACKAGE_NAME: ${{ needs.prepare.outputs.package_name }}
           PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_MODE: ${{ needs.prepare.outputs.release_mode }}
         shell: bash
         run: |
           set -euo pipefail
@@ -323,7 +362,7 @@ jobs:
 
           latest_argument="$latest_version"
           if [[ -z "$latest_argument" ]]; then latest_argument="-"; fi
-          plan="$(node scripts/release-policy.mjs plan "$PACKAGE_VERSION" "$latest_argument" "$publication_state" "$integrity_state")"
+          plan="$(node .release-automation/scripts/release-policy.mjs plan "$PACKAGE_VERSION" "$latest_argument" "$publication_state" "$integrity_state" "$RELEASE_MODE")"
 
           {
             echo "latest_version=$latest_version"
@@ -365,7 +404,13 @@ jobs:
           set -euo pipefail
 
           tarball="$RUNNER_TEMP/release-package/$ARCHIVE_FILENAME"
-          if [[ "$PUBLICATION_PLAN" == "publish" ]]; then
+          if [[ "$PUBLICATION_PLAN" == "stage" ]]; then
+            if [[ -z "$NPM_BOOTSTRAP_TOKEN" ]]; then
+              echo "::error::stage-first-release requires the npm Environment secret NPM_TOKEN"
+              exit 1
+            fi
+            NODE_AUTH_TOKEN="$NPM_BOOTSTRAP_TOKEN" npm stage publish "$tarball" --access public --tag latest --provenance
+          elif [[ "$PUBLICATION_PLAN" == "publish" ]]; then
             if [[ -n "$NPM_BOOTSTRAP_TOKEN" ]]; then
               NODE_AUTH_TOKEN="$NPM_BOOTSTRAP_TOKEN" npm publish "$tarball" --access public --tag latest --provenance
             else
@@ -375,13 +420,16 @@ jobs:
             echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already published, verified, and latest; resuming release."
           fi
 
-          latest_version="$(npm view "${PACKAGE_NAME}@latest" version)"
-          if [[ "$latest_version" != "$PACKAGE_VERSION" ]]; then
-            echo "::error::npm latest points to $latest_version instead of $PACKAGE_VERSION"
-            exit 1
+          if [[ "$PUBLICATION_PLAN" != "stage" ]]; then
+            latest_version="$(npm view "${PACKAGE_NAME}@latest" version)"
+            if [[ "$latest_version" != "$PACKAGE_VERSION" ]]; then
+              echo "::error::npm latest points to $latest_version instead of $PACKAGE_VERSION"
+              exit 1
+            fi
           fi
 
       - name: Create or update the latest GitHub Release
+        if: steps.npm_plan.outputs.plan != 'stage'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_NOTES_FILE: ${{ needs.prepare.outputs.notes_file }}
@@ -413,6 +461,7 @@ jobs:
           fi
 
       - name: Record release result
+        if: steps.npm_plan.outputs.plan != 'stage'
         env:
           PACKAGE_NAME: ${{ needs.prepare.outputs.package_name }}
           PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
@@ -423,4 +472,19 @@ jobs:
             echo
             echo "- npm: https://www.npmjs.com/package/$PACKAGE_NAME/v/$PACKAGE_VERSION"
             echo "- GitHub: https://github.com/${{ github.repository }}/releases/tag/$RELEASE_TAG"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record staged first release
+        if: steps.npm_plan.outputs.plan == 'stage'
+        env:
+          PACKAGE_NAME: ${{ needs.prepare.outputs.package_name }}
+          PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          {
+            echo "## Staged $PACKAGE_NAME@$PACKAGE_VERSION"
+            echo
+            echo "- Review and approve the staged package with 2FA on npmjs.com."
+            echo "- After approval, configure trusted publishing and remove NPM_TOKEN."
+            echo "- Rerun this workflow from main with operation release to create the GitHub Release for $RELEASE_TAG."
           } >> "$GITHUB_STEP_SUMMARY"

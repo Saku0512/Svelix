@@ -23,9 +23,21 @@ export const planStableRelease = ({
   candidateVersion,
   latestVersion,
   candidatePublished,
-  integrityMatches
+  integrityMatches,
+  releaseMode = 'release'
 }) => {
   parseStableVersion(candidateVersion);
+  if (!['release', 'stage-first-release'].includes(releaseMode)) {
+    throw new Error(`Unknown release mode: ${releaseMode}`);
+  }
+
+  if (releaseMode === 'stage-first-release') {
+    if (latestVersion !== null || candidatePublished) {
+      throw new Error('Initial staging is only allowed before the npm package exists');
+    }
+    return 'stage';
+  }
+
   const comparison = latestVersion === null
     ? null
     : compareStableVersions(candidateVersion, latestVersion);
@@ -61,14 +73,27 @@ export const planStableRelease = ({
     );
   }
 
+  if (latestVersion === null) {
+    throw new Error(
+      `Refusing to publish ${candidateVersion} directly: use stage-first-release for the initial npm package`
+    );
+  }
+
   return 'publish';
 };
 
 const runCli = () => {
-  const [command, candidateVersion, latestArgument, publicationState, integrityState] = process.argv.slice(2);
+  const [
+    command,
+    candidateVersion,
+    latestArgument,
+    publicationState,
+    integrityState,
+    releaseMode = 'release'
+  ] = process.argv.slice(2);
   if (command !== 'plan') {
     throw new Error(
-      'Usage: node scripts/release-policy.mjs plan <candidate> <latest|-> <published|unpublished> <match|mismatch>'
+      'Usage: node scripts/release-policy.mjs plan <candidate> <latest|-> <published|unpublished> <match|mismatch> [release|stage-first-release]'
     );
   }
   if (!['published', 'unpublished'].includes(publicationState)) {
@@ -77,12 +102,16 @@ const runCli = () => {
   if (!['match', 'mismatch'].includes(integrityState)) {
     throw new Error(`Expected match or mismatch integrity state, received ${integrityState}`);
   }
+  if (!['release', 'stage-first-release'].includes(releaseMode)) {
+    throw new Error(`Expected release or stage-first-release mode, received ${releaseMode}`);
+  }
 
   const action = planStableRelease({
     candidateVersion,
     latestVersion: latestArgument === '-' ? null : latestArgument,
     candidatePublished: publicationState === 'published',
-    integrityMatches: integrityState === 'match'
+    integrityMatches: integrityState === 'match',
+    releaseMode
   });
   process.stdout.write(action);
 };
