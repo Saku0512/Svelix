@@ -1,9 +1,30 @@
 {
   "name": "svelix",
   "version": "0.1.0",
+  "description": "A small, composable, native-first UI component library for Svelte 5.",
+  "keywords": [
+    "svelte",
+    "svelte5",
+    "components",
+    "ui",
+    "accessibility"
+  ],
+  "author": "Saku0512",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Saku0512/Svelix.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Saku0512/Svelix/issues"
+  },
+  "homepage": "https://github.com/Saku0512/Svelix#readme",
   "type": "module",
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "svelte": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -17,6 +38,10 @@
   "sideEffects": [
     "**/*.css"
   ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "build": "svelte-package",
     "check": "svelte-check --tsconfig ./tsconfig.json",
