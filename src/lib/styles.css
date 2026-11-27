@@ -6,6 +6,8 @@
   --svelix-spacing-sm: 0.5rem;
   --svelix-spacing-md: 0.75rem;
   --svelix-border-width: 1px;
+  --svelix-focus-ring-width: 2px;
+  --svelix-focus-ring-offset: 2px;
 }
 
 /* Light is the default and can also be restored inside a dark subtree. */
@@ -20,6 +22,7 @@
   --svelix-muted-foreground: #475569;
   --svelix-border: #64748b;
   --svelix-danger: #b91c1c;
+  --svelix-focus-ring: #1d4ed8;
 }
 
 :where([data-svelix-theme="dark"]) {
@@ -33,4 +36,5 @@
   --svelix-muted-foreground: #cbd5e1;
   --svelix-border: #94a3b8;
   --svelix-danger: #fca5a5;
+  --svelix-focus-ring: #93c5fd;
 }
