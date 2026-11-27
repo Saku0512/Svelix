@@ -51,6 +51,7 @@ const chrome = spawn(executable, [
   '--no-first-run',
   '--no-default-browser-check',
   '--disable-extensions',
+  ...(process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage'] : []),
   `--user-data-dir=${profile}`,
   '--remote-debugging-port=0',
   'about:blank'
