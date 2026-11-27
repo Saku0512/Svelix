@@ -1183,12 +1183,12 @@ try {
   })`), {
     aChecked: false,
     bChecked: false,
-    model: '',
+    model: 'null',
     formA: { 'unrelated-native': 'u' },
     formB: {}
   });
 
-  // Verify explicit defaultChecked={false} on all controlled radios resets to no selection (undefined).
+  // Verify explicit defaultChecked={false} resets to null and remains controlled for re-selection.
   assert.deepEqual(await evaluate(`({
     aChecked: document.getElementById('rg-eu-a').checked,
     bChecked: document.getElementById('rg-eu-b').checked,
@@ -1212,8 +1212,96 @@ try {
   })`), {
     aChecked: false,
     bChecked: false,
-    model: '',
+    model: 'null',
     formData: {}
+  });
+  await evaluate(`document.getElementById('rg-eu-b').click(); Promise.resolve()`);
+  assert.deepEqual(await evaluate(`({
+    aChecked: document.getElementById('rg-eu-a').checked,
+    bChecked: document.getElementById('rg-eu-b').checked,
+    model: document.getElementById('rg-explicit-unchecked-value').value,
+    formData: Object.fromEntries(new FormData(document.getElementById('rg-explicit-unchecked-form')))
+  })`), {
+    aChecked: false,
+    bChecked: true,
+    model: 'b',
+    formData: { 'explicit-unchecked': 'b' }
+  });
+
+  // Verify controlled null lifecycle: initial null -> select -> reset -> re-select -> programmatic clear -> re-select.
+  assert.deepEqual(await evaluate(`({
+    aChecked: document.getElementById('rg-null-a').checked,
+    bChecked: document.getElementById('rg-null-b').checked,
+    model: document.getElementById('rg-nullable-value').value,
+    formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+  })`), {
+    aChecked: false,
+    bChecked: false,
+    model: 'null',
+    formData: {}
+  });
+  await evaluate(`document.getElementById('rg-null-a').click(); Promise.resolve()`);
+  assert.deepEqual(await evaluate(`({
+    aChecked: document.getElementById('rg-null-a').checked,
+    bChecked: document.getElementById('rg-null-b').checked,
+    model: document.getElementById('rg-nullable-value').value,
+    formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+  })`), {
+    aChecked: true,
+    bChecked: false,
+    model: 'a',
+    formData: { 'nullable-choice': 'a' }
+  });
+  await evaluate(`
+    document.getElementById('rg-nullable-form').reset();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    aChecked: document.getElementById('rg-null-a').checked,
+    bChecked: document.getElementById('rg-null-b').checked,
+    model: document.getElementById('rg-nullable-value').value,
+    formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+  })`), {
+    aChecked: false,
+    bChecked: false,
+    model: 'null',
+    formData: {}
+  });
+  await evaluate(`document.getElementById('rg-null-b').click(); Promise.resolve()`);
+  assert.deepEqual(await evaluate(`({
+    aChecked: document.getElementById('rg-null-a').checked,
+    bChecked: document.getElementById('rg-null-b').checked,
+    model: document.getElementById('rg-nullable-value').value,
+    formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+  })`), {
+    aChecked: false,
+    bChecked: true,
+    model: 'b',
+    formData: { 'nullable-choice': 'b' }
+  });
+  await evaluate(`document.getElementById('rg-nullable-clear').click(); Promise.resolve()`);
+  assert.deepEqual(await evaluate(`({
+    aChecked: document.getElementById('rg-null-a').checked,
+    bChecked: document.getElementById('rg-null-b').checked,
+    model: document.getElementById('rg-nullable-value').value,
+    formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+  })`), {
+    aChecked: false,
+    bChecked: false,
+    model: 'null',
+    formData: {}
+  });
+  await evaluate(`document.getElementById('rg-null-a').click(); Promise.resolve()`);
+  assert.deepEqual(await evaluate(`({
+    aChecked: document.getElementById('rg-null-a').checked,
+    bChecked: document.getElementById('rg-null-b').checked,
+    model: document.getElementById('rg-nullable-value').value,
+    formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+  })`), {
+    aChecked: true,
+    bChecked: false,
+    model: 'a',
+    formData: { 'nullable-choice': 'a' }
   });
 
   console.log(`Component fixture passed in ${executable}.`);

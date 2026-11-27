@@ -92,6 +92,11 @@ const svelixRadioGroup: ComponentProps<typeof RadioGroup> = {
   value: 'pro',
   disabled: false
 };
+const svelixEmptyRadioGroup: ComponentProps<typeof RadioGroup> = {
+  legend: 'Optional plan',
+  name: 'optional-plan',
+  value: null
+};
 const svelixRadio: ComponentProps<typeof Radio> = {
   value: 'pro',
   disabled: false,
@@ -115,6 +120,7 @@ void [
   file,
   svelixCheckbox,
   svelixRadioGroup,
+  svelixEmptyRadioGroup,
   svelixRadio,
   invalidButton,
   invalidInput,

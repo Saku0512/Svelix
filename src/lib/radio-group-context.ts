@@ -9,8 +9,8 @@ export interface RegisteredRadio {
 export interface RadioGroupContext {
   getName: () => string;
   isControlled: () => boolean;
-  getValue: () => string | undefined;
-  getInitialValue: () => string | undefined;
+  getValue: () => string | null | undefined;
+  getInitialValue: () => string | null | undefined;
   setValue: (next: string) => void;
   registerRadio: (entry: RegisteredRadio) => () => void;
 }

@@ -16,9 +16,10 @@
      */
     name?: string;
     /**
-     * Selected value in controlled/bound mode. Omit to keep native uncontrolled behavior.
+     * Selected value in controlled/bound mode. Use `null` for controlled no selection;
+     * omit (`undefined`) to keep native uncontrolled behavior.
      */
-    value?: string;
+    value?: string | null;
   };
 
   // Sentinel distinguishing an omitted (uncontrolled) `value` prop from a bound/controlled one.
@@ -27,7 +28,7 @@
   let {
     legend,
     name,
-    value = $bindable(VALUE_UNSET as unknown as string),
+    value = $bindable<string | null>(VALUE_UNSET as unknown as string | null),
     children,
     ...rest
   }: RadioGroupProps = $props();
@@ -35,16 +36,16 @@
   const fallbackId = $props.id();
   const fallbackName = `svelix-radio-group-${fallbackId}`;
   const resolvedName = $derived(name?.trim() || fallbackName);
-  const isControlled = $derived(value !== (VALUE_UNSET as unknown as string));
+  const isControlled = $derived(value !== (VALUE_UNSET as unknown as string | null));
   const initialValue = untrack(() =>
-    value !== (VALUE_UNSET as unknown as string) ? value : undefined
+    value !== (VALUE_UNSET as unknown as string | null) ? value : null
   );
 
   const registeredRadios = new Set<RegisteredRadio>();
 
   type PendingReset = {
     canceled: boolean;
-    valueAtReset: string | undefined;
+    valueAtReset: string | null;
   };
 
   // Track only pending resets belonging to this RadioGroup instance.
@@ -110,6 +111,7 @@
 
         if (!entry.canceled) {
           const activeOwnedByOtherForm =
+            value !== null &&
             value !== undefined &&
             [...registeredRadios].some(
               (radio) =>
@@ -121,12 +123,11 @@
               if (radio.getDefaultChecked()) defaultRadio = radio;
             }
             // When no radio in the reset form has a checked default, native reset
-            // leaves the form with no selection (`undefined`) rather than selecting
-            // an initial value that may belong to another form or was explicitly false.
-            const nextValue = defaultRadio ? defaultRadio.getValue() : undefined;
+            // leaves the form with no selection (`null`) while keeping controlled mode active.
+            const nextValue: string | null = defaultRadio ? defaultRadio.getValue() : null;
             if (value !== nextValue) {
               applyingReset = true;
-              value = nextValue as string;
+              value = nextValue;
               queueMicrotask(() => {
                 applyingReset = false;
               });
@@ -137,7 +138,7 @@
         // Re-sync DOM checked state only for owned radios belonging to the reset form.
         const current = value;
         for (const radio of matchingRadios) {
-          radio.node.checked = current !== undefined && radio.getValue() === current;
+          radio.node.checked = current !== null && current !== undefined && radio.getValue() === current;
         }
       }, 0);
     };

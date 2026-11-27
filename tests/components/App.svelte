@@ -30,9 +30,10 @@
   let rgChanges = $state(0);
   let rgSubmissions = $state(0);
   let rgUnnamed = $state('first');
-  let rgCrossOwner = $state<string | undefined>('a');
+  let rgCrossOwner = $state<string | null>('a');
   let rgDefaultVal = $state('custom');
-  let rgExplicitUnchecked = $state<string | undefined>('a');
+  let rgExplicitUnchecked = $state<string | null>('a');
+  let rgNullable = $state<string | null>(null);
 </script>
 
 <section data-svelix-theme="light">
@@ -467,6 +468,26 @@
     </RadioGroup>
   </form>
 
+  <form id="rg-nullable-form">
+    <RadioGroup
+      id="rg-nullable"
+      legend="Initially empty controlled group"
+      name="nullable-choice"
+      bind:value={rgNullable}
+    >
+      <label><Radio id="rg-null-a" value="a" /> Choice A</label>
+      <label><Radio id="rg-null-b" value="b" /> Choice B</label>
+    </RadioGroup>
+    <Button
+      id="rg-nullable-clear"
+      type="button"
+      variant="secondary"
+      onclick={() => {
+        rgNullable = null;
+      }}
+    >Clear selection</Button>
+  </form>
+
   <output id="keyboard-count">{keyboardActivations}</output>
   <output id="disabled-count">{disabledActivations}</output>
   <output id="submission-count">{submissions}</output>
@@ -495,9 +516,10 @@
   <output id="rg-changes-value">{rgChanges}</output>
   <output id="rg-submissions-value">{rgSubmissions}</output>
   <output id="rg-unnamed-value">{rgUnnamed}</output>
-  <output id="rg-cross-owner-value">{rgCrossOwner ?? ''}</output>
+  <output id="rg-cross-owner-value">{rgCrossOwner === null ? 'null' : rgCrossOwner}</output>
   <output id="rg-default-val-value">{rgDefaultVal}</output>
-  <output id="rg-explicit-unchecked-value">{rgExplicitUnchecked ?? ''}</output>
+  <output id="rg-explicit-unchecked-value">{rgExplicitUnchecked === null ? 'null' : rgExplicitUnchecked}</output>
+  <output id="rg-nullable-value">{rgNullable === null ? 'null' : rgNullable}</output>
 </section>
 
 <section data-svelix-theme="dark" id="dark-theme">
