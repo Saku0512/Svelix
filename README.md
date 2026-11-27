@@ -13,7 +13,7 @@ Run `npm run test:theme` to check the theme fixture in headless Chromium. It nee
 
 Run `npm run test:components` to build the Button and Input browser fixture and verify native form, keyboard, disabled, validation, binding, styling, and scoped-style behavior in headless Chromium. It uses the same `CHROME_PATH` override and adds no browser dependency.
 
-The package exposes Button and Input from `svelix`, and its shared CSS from `svelix/styles.css`.
+The package exposes Button, Input, Checkbox, RadioGroup, and Radio from `svelix`, and its shared CSS from `svelix/styles.css`.
 
 ## Components
 
@@ -97,6 +97,64 @@ Input renders a native `<input>`, forwards native attributes and event callbacks
 ```
 
 Use a visible `<label>` associated with `for` and `id`; a placeholder is not a label. Native constraint failures receive invalid styling after user interaction through `:user-invalid`. For custom or server-side validation, set `aria-invalid="true"` and associate visible error text with `aria-describedby`. Svelix does not add validation timing, messages, or submission logic. Checkbox and radio controls use `accent-color` from the shared primary token.
+
+### Checkbox
+
+`Checkbox` renders a native `<input type="checkbox">` and forwards `HTMLInputAttributes` (omitting `type` and `children`). It supports both controlled/bound and uncontrolled state ownership:
+
+- **Controlled / bound**: Pass `bind:checked` (or `checked`). The mount-time `defaultChecked` (or initial `checked`) is snapshotted so native `form.reset()` restores the baseline and syncs the binding.
+- **Uncontrolled**: Omit `checked` and optionally pass `defaultChecked`. The browser owns checked state and form reset natively.
+- **Indeterminate**: Pass `indeterminate` or `bind:indeterminate` to control the DOM `indeterminate` property (for example, partial "select all" state). User activation clears `indeterminate` natively and updates the binding.
+
+Always associate each `Checkbox` with a visible `<label>` using `for`/`id` or by wrapping the control so the label expands the clickable target area.
+
+```svelte
+<script lang="ts">
+  import { Checkbox } from 'svelix';
+  import 'svelix/styles.css';
+
+  let selectAll = $state(false);
+  let partial = $state(true);
+</script>
+
+<label for="select-all">Select all items</label>
+<Checkbox id="select-all" name="all" bind:checked={selectAll} bind:indeterminate={partial} />
+
+<label>
+  <Checkbox name="newsletter" value="yes" defaultChecked />
+  Receive release updates
+</label>
+```
+
+### RadioGroup and Radio
+
+`RadioGroup` renders a native `<fieldset>` with an optional `<legend>` (`legend` prop accepts a string or a Svelte snippet; omit it to place your own `<legend>` as the first child). `Radio` renders a native `<input type="radio">` and forwards `HTMLInputAttributes` (omitting `type` and `children`). No custom ARIA radio widget or focus-management layer is introduced; native arrow-key navigation, `Tab` order, `disabled` skipping, and `FormData` submission are preserved.
+
+- **Shared `name`**: Set `name` on `RadioGroup` so child `Radio` controls inherit it automatically (an explicit `name` on `Radio` takes precedence).
+- **Controlled / bound**: Pass `bind:value` on `RadioGroup` to own the selected value in Svelte state. Native `form.reset()` restores the mount-time initial value unless application code writes a newer `value` immediately after `reset()`.
+- **Uncontrolled**: Omit `value` on `RadioGroup` and set `defaultChecked` on the default `Radio`. The browser owns selection and form reset natively.
+- **Disabled**: Set `disabled` on an individual `Radio` to disable one option, or set `disabled` on `RadioGroup` (`<fieldset disabled>`) to disable the entire group natively.
+
+```svelte
+<script lang="ts">
+  import { Radio, RadioGroup } from 'svelix';
+  import 'svelix/styles.css';
+
+  let plan = $state('pro');
+</script>
+
+<RadioGroup legend="Billing plan" name="plan" bind:value={plan}>
+  <label><Radio value="basic" /> Basic</label>
+  <label><Radio value="legacy" disabled /> Legacy (unavailable)</label>
+  <label><Radio value="pro" /> Pro</label>
+</RadioGroup>
+
+<RadioGroup name="delivery">
+  {#snippet legend()}Delivery method{/snippet}
+  <label><Radio value="standard" defaultChecked /> Standard</label>
+  <label><Radio value="express" /> Express</label>
+</RadioGroup>
+```
 
 ### Component styling
 
