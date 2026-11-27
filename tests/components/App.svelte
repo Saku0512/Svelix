@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, Input } from '../../src/lib/index.js';
+  import { Button, Checkbox, Input, Radio, RadioGroup } from '../../src/lib/index.js';
 
   let keyboardActivations = $state(0);
   let disabledActivations = $state(0);
@@ -23,6 +23,20 @@
   let dynamicType = $state<'text' | 'checkbox'>('text');
   let dynamicText = $state('switchable');
   let dynamicChecked = $state(false);
+  let cbControlled = $state(false);
+  let cbIndeterminate = $state(true);
+  let cbChanges = $state(0);
+  let rgPlan = $state('pro');
+  let rgChanges = $state(0);
+  let rgSubmissions = $state(0);
+  let rgUnnamed = $state('first');
+  let rgCrossOwner = $state<string | null>('a');
+  let rgDefaultVal = $state('custom');
+  let rgExplicitUnchecked = $state<string | null>('a');
+  let rgNullable = $state<string | null>(null);
+  let rgOuterNested = $state<string | null>('outer-a');
+  let rgInnerNested = $state<string | null>('inner-a');
+  let rgExternalValue = $state<string | null>('ext-a');
 </script>
 
 <section data-svelix-theme="light">
@@ -347,6 +361,212 @@
 
   <button id="plain-button">Plain button</button>
   <input id="plain-input" aria-label="Plain input" />
+  <input id="plain-checkbox" type="checkbox" aria-label="Plain checkbox" />
+  <fieldset id="plain-fieldset"><legend>Plain group</legend></fieldset>
+
+  <form
+    id="selection-form"
+    onsubmit={(event) => {
+      event.preventDefault();
+      rgSubmissions += 1;
+    }}
+  >
+    <span id="selection-tab-start" tabindex="-1"></span>
+    <label id="cb-controlled-label" for="cb-controlled">Controlled checkbox</label>
+    <Checkbox
+      id="cb-controlled"
+      name="cb-controlled"
+      value="yes"
+      aria-describedby="cb-controlled-help"
+      bind:checked={cbControlled}
+      bind:indeterminate={cbIndeterminate}
+      onchange={() => (cbChanges += 1)}
+    />
+    <span id="cb-controlled-help">Required for confirmation.</span>
+    <Button
+      id="cb-set-indeterminate"
+      type="button"
+      variant="secondary"
+      onclick={() => {
+        cbIndeterminate = true;
+      }}
+    >Set indeterminate</Button>
+    <label for="cb-disabled">Disabled checkbox</label>
+    <Checkbox id="cb-disabled" name="cb-disabled" value="no" disabled checked />
+    <label id="cb-uncontrolled-label">
+      <Checkbox id="cb-uncontrolled" name="cb-uncontrolled" value="on" defaultChecked />
+      Uncontrolled checkbox
+    </label>
+    <label for="cb-invalid">Invalid checkbox</label>
+    <Checkbox id="cb-invalid" aria-invalid={true} aria-describedby="cb-invalid-error" />
+    <span id="cb-invalid-error">Accept to continue.</span>
+
+    <RadioGroup id="rg-plan" legend="Billing plan" name="plan" bind:value={rgPlan}>
+      <label>
+        <Radio id="rg-plan-basic" value="basic" onchange={() => (rgChanges += 1)} />
+        Basic
+      </label>
+      <label>
+        <Radio id="rg-plan-disabled" value="legacy" disabled />
+        Legacy
+      </label>
+      <label>
+        <Radio id="rg-plan-pro" value="pro" onchange={() => (rgChanges += 1)} />
+        Pro
+      </label>
+    </RadioGroup>
+
+    <RadioGroup id="rg-uncontrolled" name="delivery">
+      {#snippet legend()}Delivery method{/snippet}
+      <label>
+        <Radio id="rg-delivery-standard" value="standard" defaultChecked />
+        Standard
+      </label>
+      <label>
+        <Radio id="rg-delivery-express" value="express" />
+        Express
+      </label>
+    </RadioGroup>
+
+    <RadioGroup id="rg-disabled-group" legend="Disabled group" name="locked" disabled>
+      <label>
+        <Radio id="rg-locked-a" value="a" defaultChecked />
+        Locked A
+      </label>
+      <label>
+        <Radio id="rg-locked-b" value="b" />
+        Locked B
+      </label>
+    </RadioGroup>
+
+    <Button id="selection-submit">Submit selection</Button>
+    <Button id="selection-reset" type="reset" variant="ghost">Reset selection</Button>
+    <Button
+      id="selection-reset-then-set"
+      type="button"
+      variant="secondary"
+      onclick={() => {
+        const form = document.getElementById('selection-form');
+        if (form instanceof HTMLFormElement) form.reset();
+        rgPlan = 'basic';
+      }}
+    >Reset then set basic</Button>
+
+    <RadioGroup id="rg-unnamed" legend="Unnamed group" bind:value={rgUnnamed}>
+      <label><Radio id="rg-unnamed-first" value="first" /> First</label>
+      <label><Radio id="rg-unnamed-second" name="overridden" value="second" /> Second</label>
+    </RadioGroup>
+
+    <RadioGroup id="rg-default-value" legend="Omitted value group" name="default-val" bind:value={rgDefaultVal}>
+      <label><Radio id="rg-omitted-value" /> Omitted value</label>
+      <label><Radio id="rg-explicit-value" value="custom" /> Custom value</label>
+    </RadioGroup>
+  </form>
+
+  <form id="rg-owner-form-a">
+    <RadioGroup id="rg-cross-owner" legend="Cross-form owner group" name="cross-owner" bind:value={rgCrossOwner}>
+      <label><Radio id="rg-owner-a" value="a" /> Owner A</label>
+      <label><Radio id="rg-owner-b" value="b" form="rg-owner-form-b" /> Owner B</label>
+      <label><input id="rg-unrelated-native" type="radio" name="unrelated-native" value="u" checked /> Unrelated native</label>
+    </RadioGroup>
+  </form>
+  <form id="rg-owner-form-b"></form>
+
+  <form id="rg-explicit-unchecked-form">
+    <RadioGroup
+      id="rg-explicit-unchecked"
+      legend="Explicit unchecked defaults"
+      name="explicit-unchecked"
+      bind:value={rgExplicitUnchecked}
+    >
+      <label><Radio id="rg-eu-a" value="a" defaultChecked={false} /> Option A</label>
+      <label><Radio id="rg-eu-b" value="b" defaultChecked={false} /> Option B</label>
+    </RadioGroup>
+  </form>
+
+  <form id="rg-nullable-form">
+    <RadioGroup
+      id="rg-nullable"
+      legend="Initially empty controlled group"
+      name="nullable-choice"
+      bind:value={rgNullable}
+    >
+      <label id="rg-null-a-label"><Radio id="rg-null-a" value="a" /> Choice A</label>
+      <label id="rg-null-b-label"><Radio id="rg-null-b" value="b" /> Choice B</label>
+    </RadioGroup>
+    <Button
+      id="rg-nullable-clear"
+      type="button"
+      variant="secondary"
+      onclick={() => {
+        rgNullable = null;
+      }}
+    >Clear selection</Button>
+    <Button
+      id="rg-nullable-synthetic-reset"
+      type="button"
+      variant="secondary"
+      onclick={() => {
+        document.getElementById('rg-nullable-form')?.dispatchEvent(
+          new Event('reset', { bubbles: true, cancelable: true })
+        );
+      }}
+    >Synthetic reset</Button>
+    <Button
+      id="rg-nullable-canceled-reset"
+      type="button"
+      variant="secondary"
+      onclick={() => {
+        const form = document.getElementById('rg-nullable-form');
+        if (!(form instanceof HTMLFormElement)) return;
+        const cancel = (event: Event) => {
+          event.preventDefault();
+          form.removeEventListener('reset', cancel);
+        };
+        form.addEventListener('reset', cancel);
+        form.reset();
+      }}
+    >Canceled reset</Button>
+    <Button
+      id="rg-nullable-canceled-then-valid"
+      type="button"
+      variant="secondary"
+      onclick={() => {
+        const form = document.getElementById('rg-nullable-form');
+        if (!(form instanceof HTMLFormElement)) return;
+        const cancel = (event: Event) => {
+          event.preventDefault();
+          form.removeEventListener('reset', cancel);
+        };
+        form.addEventListener('reset', cancel);
+        form.reset();
+        form.reset();
+      }}
+    >Canceled then valid reset</Button>
+    <Button id="rg-nullable-reset-btn" type="reset" variant="ghost">Reset nullable</Button>
+  </form>
+
+  <form id="rg-nested-outer-form">
+    <RadioGroup id="rg-nested-outer" legend="Outer group" name="outer-choice" bind:value={rgOuterNested}>
+      <label><Radio id="rg-outer-a" value="outer-a" /> Outer A</label>
+      <label><Radio id="rg-outer-b" value="outer-b" /> Outer B</label>
+      <RadioGroup id="rg-nested-inner" legend="Inner group" name="inner-choice" bind:value={rgInnerNested}>
+        <label><Radio id="rg-inner-a" value="inner-a" /> Inner A</label>
+        <label><Radio id="rg-inner-b" value="inner-b" /> Inner B</label>
+      </RadioGroup>
+    </RadioGroup>
+  </form>
+
+  <form id="rg-external-form"></form>
+  <RadioGroup id="rg-external" legend="External form group" name="external-choice" bind:value={rgExternalValue}>
+    <label><Radio id="rg-ext-a" value="ext-a" form="rg-external-form" /> External A</label>
+    <label><Radio id="rg-ext-b" value="ext-b" form="rg-external-form" /> External B</label>
+  </RadioGroup>
+
+  <form id="standalone-radio-form">
+    <label><Radio id="standalone-a" name="standalone" value="a" defaultChecked /> Standalone A</label>
+    <label><Radio id="standalone-b" name="standalone" value="b" /> Standalone B</label>
+  </form>
 
   <output id="keyboard-count">{keyboardActivations}</output>
   <output id="disabled-count">{disabledActivations}</output>
@@ -369,12 +589,30 @@
   <output id="dynamic-type">{dynamicType}</output>
   <output id="dynamic-text">{dynamicText}</output>
   <output id="dynamic-checked">{String(dynamicChecked)}</output>
+  <output id="cb-controlled-value">{String(cbControlled)}</output>
+  <output id="cb-indeterminate-value">{String(cbIndeterminate)}</output>
+  <output id="cb-changes-value">{cbChanges}</output>
+  <output id="rg-plan-value">{rgPlan}</output>
+  <output id="rg-changes-value">{rgChanges}</output>
+  <output id="rg-submissions-value">{rgSubmissions}</output>
+  <output id="rg-unnamed-value">{rgUnnamed}</output>
+  <output id="rg-cross-owner-value">{JSON.stringify(rgCrossOwner)}</output>
+  <output id="rg-default-val-value">{rgDefaultVal}</output>
+  <output id="rg-explicit-unchecked-value">{JSON.stringify(rgExplicitUnchecked)}</output>
+  <output id="rg-nullable-value">{JSON.stringify(rgNullable)}</output>
+  <output id="rg-outer-nested-value">{JSON.stringify(rgOuterNested)}</output>
+  <output id="rg-inner-nested-value">{JSON.stringify(rgInnerNested)}</output>
+  <output id="rg-external-value">{JSON.stringify(rgExternalValue)}</output>
 </section>
 
 <section data-svelix-theme="dark" id="dark-theme">
   <Button id="dark-primary">Dark primary</Button>
   <Input id="dark-email" type="email" aria-label="Dark email" value="dark@example.com" />
   <Input id="dark-checkbox" type="checkbox" aria-label="Dark checkbox" checked />
+  <Checkbox id="dark-svelix-checkbox" aria-label="Dark Svelix checkbox" defaultChecked />
+  <RadioGroup id="dark-radio-group" legend="Dark options" name="dark-opt">
+    <label><Radio id="dark-radio-a" value="a" defaultChecked /> Option A</label>
+  </RadioGroup>
 </section>
 
 <style>

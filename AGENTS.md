@@ -69,7 +69,7 @@ Before making changes:
 - Validate public inputs at appropriate boundaries.
 - Handle errors explicitly; do not silently swallow failures.
 - Keep modules focused and avoid premature generalization.
-- Add or update tests for behavior changes and regression fixes.
+- Add or update tests for behavior changes and regression fixes, following the `svelix-testing` skill (`.agents/skills/svelix-testing/SKILL.md`) for test design, browser fixtures, type/package checks, and acceptance evidence.
 - Run relevant formatting, lint, type-check, test, and build commands that are available in the repository.
 - Report commands that could not be run and why. Never claim checks passed unless they were actually run.
 
@@ -312,6 +312,12 @@ BREAKING CHANGE: remove the deprecated theme configuration
 Prefer merge commits to preserve meaningful atomic development commits and PR boundaries. Squash merge is acceptable only when the resulting commit represents one coherent logical change. Integration merge commits may combine multiple existing atomic commits without changing their boundaries; their single purpose is branch integration. Use a Conventional Commits-compliant message for merge and squash commits, including release PRs (for example, `chore(release): integrate v0.1.0`).
 
 Do not rewrite shared history or force-push shared branches to clean up commits. Follow the branch strategy and maintainer authorization rules.
+
+## Language policy
+
+- English is the primary language of this repository.
+- Write all code comments, JSDoc/TSDoc comments, documentation, commit messages, pull request descriptions, and test descriptions in English.
+- Keep repository artifacts in English even when conversing with the user in another language.
 
 ## Communication
 

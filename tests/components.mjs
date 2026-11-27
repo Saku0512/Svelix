@@ -134,9 +134,20 @@ try {
   const page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
   if (!page) throw new Error('Chrome did not expose a page target');
 
+  const pageErrors = [];
   socket = new WebSocket(page.webSocketDebuggerUrl);
   socket.addEventListener('message', (event) => {
     const message = JSON.parse(event.data);
+    if (message.method === 'Runtime.exceptionThrown') {
+      const detail = message.params?.exceptionDetails;
+      pageErrors.push(detail?.exception?.description || detail?.text || 'Unhandled page exception');
+      return;
+    }
+    if (message.method === 'Runtime.consoleAPICalled' && message.params?.type === 'error') {
+      const args = (message.params.args ?? []).map((arg) => arg.description ?? String(arg.value ?? '')).join(' ');
+      pageErrors.push(`console.error: ${args}`);
+      return;
+    }
     if (message.id && pending.has(message.id)) {
       const entry = pending.get(message.id);
       pending.delete(message.id);
@@ -236,6 +247,18 @@ try {
     await evaluate(`new Promise((resolve) => setTimeout(resolve, 0))`);
   };
 
+  const runCase = async (name, fn) => {
+    try {
+      await fn();
+    } catch (error) {
+      if (error instanceof Error) {
+        error.message = `[${name}] ${error.message}`;
+      }
+      throw error;
+    }
+  };
+
+  await send('Runtime.enable');
   await send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
   const deadline = Date.now() + 8000;
   while (Date.now() < deadline) {
@@ -743,7 +766,7 @@ try {
     form: { topping: 'rice' }
   });
 
-  // HTMLFormElement.prototype.reset がマウント・アンマウントを通じて改変されないことを検証する。
+  // Verify HTMLFormElement.prototype.reset remains native and unchanged across mount/unmount.
   assert.deepEqual(await evaluate(`(() => {
     const before = HTMLFormElement.prototype.reset;
     const isNativeBefore = Function.prototype.toString.call(before).includes('[native code]');
@@ -763,7 +786,7 @@ try {
     sameAfterRemount: true
   });
 
-  // 同一タスク内でキャンセルされた reset の直後に有効な reset が続いた場合、モデルが同期されることを検証する。
+  // Verify a canceled reset followed by a valid reset in the same task syncs the model.
   await evaluate(`
     document.getElementById('topping-beans').click();
     Promise.resolve();
@@ -787,7 +810,7 @@ try {
     form: { topping: 'rice' }
   });
 
-  // 同一タスク内で有効な reset が 2 回連続した場合もデフォルトへ正しく同期されることを検証する。
+  // Verify two consecutive valid resets in the same task restore the default state.
   await evaluate(`
     document.getElementById('topping-beans').click();
     Promise.resolve();
@@ -811,7 +834,7 @@ try {
     form: { topping: 'rice' }
   });
 
-  // 別フォームのグループ更新がフォーム A の保留中リセットをキャンセルしないことを検証する。
+  // Verify updating a group in form B does not cancel form A's pending reset.
   await evaluate(`
     document.getElementById('isolated-a-checkbox').click();
     Promise.resolve();
@@ -836,7 +859,7 @@ try {
     bGroup: 'y'
   });
 
-  // 同一フォーム内の別グループ更新が他方のグループの保留中リセットをキャンセルしないことを検証する。
+  // Verify updating another group within the same form does not cancel the first group's reset.
   await evaluate(`
     document.getElementById('shared-group-one').click();
     Promise.resolve();
@@ -861,7 +884,7 @@ try {
     twoGroup: 'y'
   });
 
-  // 同じ group を共有する 2 つのフォームを同期的に連続リセットしても互いにキャンセルしないことを検証する。
+  // Verify synchronous resets across two forms sharing one group do not cancel each other.
   await evaluate(`
     document.getElementById('cross-shared-a').click();
     document.getElementById('cross-shared-b').click();
@@ -913,6 +936,523 @@ try {
     textOutput: 'switchable'
   });
 
+  // Verify Checkbox and RadioGroup/Radio semantics, initial state, accessible names, and styles.
+  const selectionInitial = await evaluate(`(() => {
+    const cb = document.getElementById('cb-controlled');
+    const cbUncontrolled = document.getElementById('cb-uncontrolled');
+    const cbDisabled = document.getElementById('cb-disabled');
+    const rgPlan = document.getElementById('rg-plan');
+    const rgUncontrolled = document.getElementById('rg-uncontrolled');
+    const rgDisabled = document.getElementById('rg-disabled-group');
+    const planPro = document.getElementById('rg-plan-pro');
+    return {
+      cbTag: cb.tagName,
+      cbType: cb.type,
+      cbChecked: cb.checked,
+      cbIndeterminate: cb.indeterminate,
+      cbMatchesIndeterminate: cb.matches(':indeterminate'),
+      cbLabel: cb.labels[0]?.textContent?.trim(),
+      cbUncontrolledChecked: cbUncontrolled.checked,
+      cbUncontrolledLabel: cbUncontrolled.labels[0]?.textContent?.trim(),
+      cbDisabled: cbDisabled.disabled,
+      rgTag: rgPlan.tagName,
+      rgRole: rgPlan.getAttribute('role'),
+      rgLegendTag: rgPlan.firstElementChild?.tagName,
+      rgLegendText: rgPlan.firstElementChild?.textContent?.trim(),
+      rgSnippetLegendText: rgUncontrolled.firstElementChild?.textContent?.trim(),
+      rgDisabled: rgDisabled.disabled,
+      planProName: planPro.name,
+      planProRole: planPro.getAttribute('role'),
+      planProChecked: planPro.checked,
+      deliveryStandardChecked: document.getElementById('rg-delivery-standard').checked,
+      formData: Object.fromEntries(new FormData(document.getElementById('selection-form'))),
+      styles: {
+        cbAccent: getComputedStyle(cb).accentColor,
+        plainCbAccent: getComputedStyle(document.getElementById('plain-checkbox')).accentColor,
+        rgBorderColor: getComputedStyle(rgPlan).borderColor,
+        plainFieldsetBorderColor: getComputedStyle(document.getElementById('plain-fieldset')).borderColor,
+        darkCbAccent: getComputedStyle(document.getElementById('dark-svelix-checkbox')).accentColor,
+        darkRadioAccent: getComputedStyle(document.getElementById('dark-radio-a')).accentColor,
+        darkRgBorder: getComputedStyle(document.getElementById('dark-radio-group')).borderColor
+      }
+    };
+  })()`);
+  assert.equal(selectionInitial.cbTag, 'INPUT');
+  assert.equal(selectionInitial.cbType, 'checkbox');
+  assert.equal(selectionInitial.cbChecked, false);
+  assert.equal(selectionInitial.cbIndeterminate, true);
+  assert.equal(selectionInitial.cbMatchesIndeterminate, true);
+  assert.equal(selectionInitial.cbLabel, 'Controlled checkbox');
+  assert.equal(selectionInitial.cbUncontrolledChecked, true);
+  assert.equal(selectionInitial.cbUncontrolledLabel, 'Uncontrolled checkbox');
+  assert.equal(selectionInitial.cbDisabled, true);
+  assert.equal(selectionInitial.rgTag, 'FIELDSET');
+  assert.equal(selectionInitial.rgRole, null, 'native fieldset must not add redundant ARIA role');
+  assert.equal(selectionInitial.rgLegendTag, 'LEGEND');
+  assert.equal(selectionInitial.rgLegendText, 'Billing plan');
+  assert.equal(selectionInitial.rgSnippetLegendText, 'Delivery method');
+  assert.equal(selectionInitial.rgDisabled, true);
+  assert.equal(selectionInitial.planProName, 'plan');
+  assert.equal(selectionInitial.planProRole, null, 'native radio must not add redundant ARIA role');
+  assert.equal(selectionInitial.planProChecked, true);
+  assert.equal(selectionInitial.deliveryStandardChecked, true);
+  assert.deepEqual(selectionInitial.formData, {
+    'cb-uncontrolled': 'on',
+    plan: 'pro',
+    delivery: 'standard',
+    [await evaluate(`document.getElementById('rg-unnamed-first').name`)]: 'first',
+    'default-val': 'custom'
+  });
+  assert.equal(selectionInitial.styles.cbAccent, 'rgb(29, 78, 216)');
+  assert.notEqual(selectionInitial.styles.plainCbAccent, 'rgb(29, 78, 216)');
+  assert.equal(selectionInitial.styles.rgBorderColor, 'rgb(100, 116, 139)');
+  assert.notEqual(selectionInitial.styles.plainFieldsetBorderColor, 'rgb(100, 116, 139)');
+  assert.equal(selectionInitial.styles.darkCbAccent, 'rgb(147, 197, 253)');
+  assert.equal(selectionInitial.styles.darkRadioAccent, 'rgb(147, 197, 253)');
+  assert.equal(selectionInitial.styles.darkRgBorder, 'rgb(148, 163, 184)');
+
+  // Verify Checkbox keyboard interaction (Tab, Space, clearing indeterminate, skipping disabled).
+  await evaluate(`document.getElementById('selection-tab-start').focus()`);
+  await key('Tab', 'Tab', 9);
+  assert.equal(await evaluate(`document.activeElement.id`), 'cb-controlled');
+  assert.equal(await evaluate(`getComputedStyle(document.activeElement).outlineStyle`), 'solid');
+  await key(' ', 'Space', 32);
+  assert.deepEqual(await evaluate(`({
+    checked: document.getElementById('cb-controlled').checked,
+    indeterminate: document.getElementById('cb-controlled').indeterminate,
+    checkedOutput: document.getElementById('cb-controlled-value').value,
+    indeterminateOutput: document.getElementById('cb-indeterminate-value').value,
+    changes: document.getElementById('cb-changes-value').value
+  })`), {
+    checked: true,
+    indeterminate: false,
+    checkedOutput: 'true',
+    indeterminateOutput: 'false',
+    changes: '1'
+  });
+
+  // Disabled checkbox is skipped in Tab order, moving focus to the uncontrolled checkbox.
+  await key('Tab', 'Tab', 9);
+  assert.equal(await evaluate(`document.activeElement.id`), 'cb-set-indeterminate');
+  await key('Tab', 'Tab', 9);
+  assert.equal(await evaluate(`document.activeElement.id`), 'cb-uncontrolled');
+  await key(' ', 'Space', 32);
+  assert.equal(await evaluate(`document.getElementById('cb-uncontrolled').checked`), false);
+
+  // Skip over invalid checkbox to reach the controlled RadioGroup.
+  await key('Tab', 'Tab', 9);
+  assert.equal(await evaluate(`document.activeElement.id`), 'cb-invalid');
+  assert.equal(
+    await evaluate(`getComputedStyle(document.getElementById('cb-invalid')).accentColor`),
+    'rgb(185, 28, 28)',
+    'aria-invalid checkbox must use danger accent token'
+  );
+  assert.equal(
+    await evaluate(`document.getElementById('cb-invalid').getAttribute('aria-describedby')`),
+    'cb-invalid-error'
+  );
+
+  // Verify RadioGroup keyboard interaction (Tab into checked radio, ArrowUp skipping disabled option).
+  await key('Tab', 'Tab', 9);
+  assert.equal(await evaluate(`document.activeElement.id`), 'rg-plan-pro');
+  assert.equal(await evaluate(`getComputedStyle(document.activeElement).outlineStyle`), 'solid');
+  await key('ArrowUp', 'ArrowUp', 38);
+  assert.deepEqual(await evaluate(`({
+    activeId: document.activeElement.id,
+    basicChecked: document.getElementById('rg-plan-basic').checked,
+    proChecked: document.getElementById('rg-plan-pro').checked,
+    planOutput: document.getElementById('rg-plan-value').value,
+    changes: document.getElementById('rg-changes-value').value
+  })`), {
+    activeId: 'rg-plan-basic',
+    basicChecked: true,
+    proChecked: false,
+    planOutput: 'basic',
+    changes: '1'
+  });
+
+  // Tab to the uncontrolled RadioGroup, switch via ArrowDown, and skip the disabled RadioGroup.
+  await key('Tab', 'Tab', 9);
+  assert.equal(await evaluate(`document.activeElement.id`), 'rg-delivery-standard');
+  await key('ArrowDown', 'ArrowDown', 40);
+  assert.equal(await evaluate(`document.getElementById('rg-delivery-express').checked`), true);
+  await key('Tab', 'Tab', 9);
+  assert.equal(
+    await evaluate(`document.activeElement.id`),
+    'selection-submit',
+    'disabled fieldset radio group must be skipped in tab order'
+  );
+
+  // Verify FormData on submit, trusted reset, and preserving newer writes after form.reset().
+  assert.deepEqual(
+    await evaluate(`Object.fromEntries(new FormData(document.getElementById('selection-form')))`),
+    {
+      'cb-controlled': 'yes',
+      plan: 'basic',
+      delivery: 'express',
+      [await evaluate(`document.getElementById('rg-unnamed-first').name`)]: 'first',
+      'default-val': 'custom'
+    }
+  );
+  await evaluate(`document.getElementById('selection-submit').click(); Promise.resolve()`);
+  assert.equal(await evaluate(`document.getElementById('rg-submissions-value').value`), '1');
+
+  await mouseClick('selection-reset');
+  assert.deepEqual(await evaluate(`({
+    cbControlled: document.getElementById('cb-controlled').checked,
+    cbControlledOutput: document.getElementById('cb-controlled-value').value,
+    cbUncontrolled: document.getElementById('cb-uncontrolled').checked,
+    rgPlan: document.getElementById('rg-plan-value').value,
+    rgProChecked: document.getElementById('rg-plan-pro').checked,
+    rgDeliveryStandard: document.getElementById('rg-delivery-standard').checked,
+    formData: Object.fromEntries(new FormData(document.getElementById('selection-form')))
+  })`), {
+    cbControlled: false,
+    cbControlledOutput: 'false',
+    cbUncontrolled: true,
+    rgPlan: 'pro',
+    rgProChecked: true,
+    rgDeliveryStandard: true,
+    formData: {
+      'cb-uncontrolled': 'on',
+      plan: 'pro',
+      delivery: 'standard',
+      [await evaluate(`document.getElementById('rg-unnamed-first').name`)]: 'first',
+      'default-val': 'custom'
+    }
+  });
+
+  await evaluate(`
+    document.getElementById('selection-reset-then-set').click();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    rgPlan: document.getElementById('rg-plan-value').value,
+    rgBasicChecked: document.getElementById('rg-plan-basic').checked,
+    rgProChecked: document.getElementById('rg-plan-pro').checked
+  })`), {
+    rgPlan: 'basic',
+    rgBasicChecked: true,
+    rgProChecked: false
+  });
+
+  // Verify RadioGroup generates a shared non-empty name when omitted and ignores child name overrides.
+  const unnamedNames = await evaluate(`({
+    first: document.getElementById('rg-unnamed-first').name,
+    second: document.getElementById('rg-unnamed-second').name
+  })`);
+  assert.ok(unnamedNames.first.length > 0, 'unnamed RadioGroup must generate a non-empty name');
+  assert.equal(unnamedNames.second, unnamedNames.first, 'child Radio must keep the group name');
+  await evaluate(`document.getElementById('rg-unnamed-second').click(); Promise.resolve()`);
+  assert.deepEqual(await evaluate(`({
+    firstChecked: document.getElementById('rg-unnamed-first').checked,
+    secondChecked: document.getElementById('rg-unnamed-second').checked,
+    value: document.getElementById('rg-unnamed-value').value,
+    formValue: new FormData(document.getElementById('selection-form')).get(${JSON.stringify(unnamedNames.first)})
+  })`), {
+    firstChecked: false,
+    secondChecked: true,
+    value: 'second',
+    formValue: 'second'
+  });
+
+  // Verify omitted Radio value matches native "on" across DOM, model, FormData, and reset.
+  await evaluate(`document.getElementById('rg-omitted-value').click(); Promise.resolve()`);
+  assert.deepEqual(await evaluate(`({
+    domValue: document.getElementById('rg-omitted-value').value,
+    checked: document.getElementById('rg-omitted-value').checked,
+    model: document.getElementById('rg-default-val-value').value,
+    formValue: new FormData(document.getElementById('selection-form')).get('default-val')
+  })`), {
+    domValue: 'on',
+    checked: true,
+    model: 'on',
+    formValue: 'on'
+  });
+  await mouseClick('selection-reset');
+  assert.deepEqual(await evaluate(`({
+    omittedChecked: document.getElementById('rg-omitted-value').checked,
+    explicitChecked: document.getElementById('rg-explicit-value').checked,
+    model: document.getElementById('rg-default-val-value').value,
+    formValue: new FormData(document.getElementById('selection-form')).get('default-val')
+  })`), {
+    omittedChecked: false,
+    explicitChecked: true,
+    model: 'custom',
+    formValue: 'custom'
+  });
+
+  // Verify resetting form A does not clear a descendant Radio owned by form B or an unrelated native radio.
+  await evaluate(`document.getElementById('rg-owner-b').click(); Promise.resolve()`);
+  assert.deepEqual(await evaluate(`({
+    bChecked: document.getElementById('rg-owner-b').checked,
+    formB: Object.fromEntries(new FormData(document.getElementById('rg-owner-form-b'))),
+    model: JSON.parse(document.getElementById('rg-cross-owner-value').value)
+  })`), {
+    bChecked: true,
+    formB: { 'cross-owner': 'b' },
+    model: 'b'
+  });
+  await evaluate(`
+    document.getElementById('rg-owner-form-a').reset();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    bChecked: document.getElementById('rg-owner-b').checked,
+    formB: Object.fromEntries(new FormData(document.getElementById('rg-owner-form-b'))),
+    unrelatedChecked: document.getElementById('rg-unrelated-native').checked
+  })`), {
+    bChecked: true,
+    formB: { 'cross-owner': 'b' },
+    unrelatedChecked: true
+  });
+
+  // Verify resetting form B clears B without re-checking A in form A.
+  await runCase('radio-group: inverse cross-form reset preserves form A', async () => {
+    await evaluate(`
+      document.getElementById('rg-owner-form-b').reset();
+      new Promise((resolve) => setTimeout(resolve, 0));
+    `);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-owner-a').checked,
+      bChecked: document.getElementById('rg-owner-b').checked,
+      model: JSON.parse(document.getElementById('rg-cross-owner-value').value),
+      formA: Object.fromEntries(new FormData(document.getElementById('rg-owner-form-a'))),
+      formB: Object.fromEntries(new FormData(document.getElementById('rg-owner-form-b')))
+    })`), {
+      aChecked: false,
+      bChecked: false,
+      model: null,
+      formA: { 'unrelated-native': 'u' },
+      formB: {}
+    });
+  });
+
+  // Verify explicit defaultChecked={false} resets to null and remains controlled for re-selection.
+  await runCase('radio-group: explicit defaultChecked=false resets to null and re-selects', async () => {
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-eu-a').checked,
+      bChecked: document.getElementById('rg-eu-b').checked,
+      model: JSON.parse(document.getElementById('rg-explicit-unchecked-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-explicit-unchecked-form')))
+    })`), {
+      aChecked: true,
+      bChecked: false,
+      model: 'a',
+      formData: { 'explicit-unchecked': 'a' }
+    });
+    await evaluate(`
+      document.getElementById('rg-explicit-unchecked-form').reset();
+      new Promise((resolve) => setTimeout(resolve, 0));
+    `);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-eu-a').checked,
+      bChecked: document.getElementById('rg-eu-b').checked,
+      model: JSON.parse(document.getElementById('rg-explicit-unchecked-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-explicit-unchecked-form')))
+    })`), {
+      aChecked: false,
+      bChecked: false,
+      model: null,
+      formData: {}
+    });
+    await evaluate(`document.getElementById('rg-eu-b').click(); Promise.resolve()`);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-eu-a').checked,
+      bChecked: document.getElementById('rg-eu-b').checked,
+      model: JSON.parse(document.getElementById('rg-explicit-unchecked-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-explicit-unchecked-form')))
+    })`), {
+      aChecked: false,
+      bChecked: true,
+      model: 'b',
+      formData: { 'explicit-unchecked': 'b' }
+    });
+  });
+
+  // Verify controlled null lifecycle with trusted clicks, keyboard reset, synthetic/canceled resets, and clear/re-select.
+  await runCase('radio-group: controlled null lifecycle and reset edge cases', async () => {
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-null-a').checked,
+      bChecked: document.getElementById('rg-null-b').checked,
+      model: JSON.parse(document.getElementById('rg-nullable-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+    })`), {
+      aChecked: false,
+      bChecked: false,
+      model: null,
+      formData: {}
+    });
+    await mouseClick('rg-null-a-label');
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-null-a').checked,
+      bChecked: document.getElementById('rg-null-b').checked,
+      model: JSON.parse(document.getElementById('rg-nullable-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+    })`), {
+      aChecked: true,
+      bChecked: false,
+      model: 'a',
+      formData: { 'nullable-choice': 'a' }
+    });
+    // Synthetic and canceled resets must not alter controlled selection.
+    await evaluate(`
+      document.getElementById('rg-nullable-synthetic-reset').click();
+      new Promise((resolve) => setTimeout(resolve, 0));
+    `);
+    assert.equal(await evaluate(`JSON.parse(document.getElementById('rg-nullable-value').value)`), 'a');
+    await evaluate(`
+      document.getElementById('rg-nullable-canceled-reset').click();
+      new Promise((resolve) => setTimeout(resolve, 0));
+    `);
+    assert.equal(await evaluate(`JSON.parse(document.getElementById('rg-nullable-value').value)`), 'a');
+    // Canceled reset followed by a valid reset in the same task must clear to null.
+    await evaluate(`
+      document.getElementById('rg-nullable-canceled-then-valid').click();
+      new Promise((resolve) => setTimeout(resolve, 0));
+    `);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-null-a').checked,
+      bChecked: document.getElementById('rg-null-b').checked,
+      model: JSON.parse(document.getElementById('rg-nullable-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+    })`), {
+      aChecked: false,
+      bChecked: false,
+      model: null,
+      formData: {}
+    });
+    // Re-select via trusted label click, then test trusted keyboard reset via Enter.
+    await mouseClick('rg-null-b-label');
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-null-a').checked,
+      bChecked: document.getElementById('rg-null-b').checked,
+      model: JSON.parse(document.getElementById('rg-nullable-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+    })`), {
+      aChecked: false,
+      bChecked: true,
+      model: 'b',
+      formData: { 'nullable-choice': 'b' }
+    });
+    await evaluate(`document.getElementById('rg-nullable-reset-btn').focus()`);
+    await key('Enter', 'Enter', 13);
+    await evaluate(`new Promise((resolve) => setTimeout(resolve, 0))`);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-null-a').checked,
+      bChecked: document.getElementById('rg-null-b').checked,
+      model: JSON.parse(document.getElementById('rg-nullable-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+    })`), {
+      aChecked: false,
+      bChecked: false,
+      model: null,
+      formData: {}
+    });
+    // Re-select, programmatically clear to null, and re-select again.
+    await mouseClick('rg-null-b-label');
+    await evaluate(`document.getElementById('rg-nullable-clear').click(); Promise.resolve()`);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-null-a').checked,
+      bChecked: document.getElementById('rg-null-b').checked,
+      model: JSON.parse(document.getElementById('rg-nullable-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+    })`), {
+      aChecked: false,
+      bChecked: false,
+      model: null,
+      formData: {}
+    });
+    await mouseClick('rg-null-a-label');
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('rg-null-a').checked,
+      bChecked: document.getElementById('rg-null-b').checked,
+      model: JSON.parse(document.getElementById('rg-nullable-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-nullable-form')))
+    })`), {
+      aChecked: true,
+      bChecked: false,
+      model: 'a',
+      formData: { 'nullable-choice': 'a' }
+    });
+  });
+
+  // Verify Checkbox trusted label click, programmatic indeterminate update, and aria-describedby.
+  await runCase('checkbox: trusted label click and programmatic indeterminate update', async () => {
+    await mouseClick('cb-controlled-label');
+    assert.deepEqual(await evaluate(`({
+      checked: document.getElementById('cb-controlled').checked,
+      output: document.getElementById('cb-controlled-value').value,
+      describedBy: document.getElementById('cb-controlled').getAttribute('aria-describedby')
+    })`), {
+      checked: true,
+      output: 'true',
+      describedBy: 'cb-controlled-help'
+    });
+    await evaluate(`document.getElementById('cb-set-indeterminate').click(); Promise.resolve()`);
+    assert.deepEqual(await evaluate(`({
+      indeterminate: document.getElementById('cb-controlled').indeterminate,
+      matches: document.getElementById('cb-controlled').matches(':indeterminate'),
+      output: document.getElementById('cb-indeterminate-value').value
+    })`), {
+      indeterminate: true,
+      matches: true,
+      output: 'true'
+    });
+  });
+
+  // Verify nested RadioGroups, external form-associated RadioGroup, and standalone Radio.
+  await runCase('radio-group: nested groups, external form owner, and standalone Radio', async () => {
+    await evaluate(`
+      document.getElementById('rg-outer-b').click();
+      document.getElementById('rg-inner-b').click();
+      Promise.resolve();
+    `);
+    assert.deepEqual(await evaluate(`({
+      outer: JSON.parse(document.getElementById('rg-outer-nested-value').value),
+      inner: JSON.parse(document.getElementById('rg-inner-nested-value').value)
+    })`), { outer: 'outer-b', inner: 'inner-b' });
+    await evaluate(`
+      document.getElementById('rg-nested-outer-form').reset();
+      new Promise((resolve) => setTimeout(resolve, 0));
+    `);
+    assert.deepEqual(await evaluate(`({
+      outer: JSON.parse(document.getElementById('rg-outer-nested-value').value),
+      inner: JSON.parse(document.getElementById('rg-inner-nested-value').value),
+      outerA: document.getElementById('rg-outer-a').checked,
+      innerA: document.getElementById('rg-inner-a').checked
+    })`), { outer: 'outer-a', inner: 'inner-a', outerA: true, innerA: true });
+
+    await evaluate(`document.getElementById('rg-ext-b').click(); Promise.resolve()`);
+    assert.deepEqual(await evaluate(`({
+      model: JSON.parse(document.getElementById('rg-external-value').value),
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-external-form')))
+    })`), { model: 'ext-b', formData: { 'external-choice': 'ext-b' } });
+    await evaluate(`
+      document.getElementById('rg-external-form').reset();
+      new Promise((resolve) => setTimeout(resolve, 0));
+    `);
+    assert.deepEqual(await evaluate(`({
+      model: JSON.parse(document.getElementById('rg-external-value').value),
+      aChecked: document.getElementById('rg-ext-a').checked,
+      formData: Object.fromEntries(new FormData(document.getElementById('rg-external-form')))
+    })`), { model: 'ext-a', aChecked: true, formData: { 'external-choice': 'ext-a' } });
+
+    await evaluate(`document.getElementById('standalone-b').click(); Promise.resolve()`);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('standalone-a').checked,
+      bChecked: document.getElementById('standalone-b').checked,
+      formData: Object.fromEntries(new FormData(document.getElementById('standalone-radio-form')))
+    })`), { aChecked: false, bChecked: true, formData: { standalone: 'b' } });
+    await evaluate(`document.getElementById('standalone-radio-form').reset(); Promise.resolve()`);
+    assert.deepEqual(await evaluate(`({
+      aChecked: document.getElementById('standalone-a').checked,
+      bChecked: document.getElementById('standalone-b').checked,
+      formData: Object.fromEntries(new FormData(document.getElementById('standalone-radio-form')))
+    })`), { aChecked: true, bChecked: false, formData: { standalone: 'a' } });
+  });
+
+  assert.deepEqual(pageErrors, [], 'unexpected browser runtime or console errors');
   console.log(`Component fixture passed in ${executable}.`);
 } finally {
   rejectPending(new Error('Component fixture is shutting down'));
