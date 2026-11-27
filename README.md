@@ -13,7 +13,7 @@ Run `npm run test:theme` to check the theme fixture in headless Chromium. It nee
 
 Run `npm run test:components` to build the Button and Input browser fixture and verify native form, keyboard, disabled, validation, binding, styling, and scoped-style behavior in headless Chromium. It uses the same `CHROME_PATH` override and adds no browser dependency.
 
-The package exposes Button, Input, Checkbox, RadioGroup, and Radio from `svelix`, and its shared CSS from `svelix/styles.css`.
+The package exposes Button, Input, Checkbox, RadioGroup, Radio, Label, and Separator from `svelix`, and its shared CSS from `svelix/styles.css`.
 
 ## Components
 
@@ -154,6 +154,57 @@ Always associate each `Checkbox` with a visible `<label>` using `for`/`id` or by
   <label><Radio value="standard" defaultChecked /> Standard</label>
   <label><Radio value="express" /> Express</label>
 </RadioGroup>
+```
+
+### Label
+
+`Label` renders a semantic `<label>` and forwards `HTMLLabelAttributes` (`for`, `form`, `id`, `class`, event callbacks, and ARIA/data attributes). It does not generate hidden IDs or implicit context relationships; associate it explicitly via `for` and `id` or implicitly by wrapping a single labelable control.
+
+```svelte
+<script lang="ts">
+  import { Checkbox, Input, Label } from 'svelix';
+  import 'svelix/styles.css';
+
+  let accepted = $state(false);
+</script>
+
+<Label for="username">Username</Label>
+<Input id="username" name="username" autocomplete="username" required />
+
+<Label>
+  <Checkbox name="terms" value="yes" bind:checked={accepted} />
+  Accept terms of service
+</Label>
+```
+
+### Separator
+
+`Separator` renders a native `<hr>` (`Omit<HTMLAttributes<HTMLHRElement>, 'children'>`) styled with borders from `--svelix-border`, `--svelix-border-width`, and `--svelix-spacing-sm` so lines remain visible in forced-colors modes.
+
+| Prop | Values | Default | Behavior |
+| --- | --- | --- | --- |
+| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | Horizontal spans full inline size (`100%`) with block spacing; vertical stretches along the cross axis (`min-block-size: 1em`) with inline spacing. |
+| `decorative` | `boolean` | `false` | `false` exposes the native `<hr>` separator semantics (adding `aria-orientation="vertical"` only when vertical, with no redundant `role="separator"`). `true` sets `aria-hidden="true"` and omits `aria-orientation` so assistive technologies ignore purely visual dividers. |
+
+```svelte
+<script lang="ts">
+  import { Button, Separator } from 'svelix';
+  import 'svelix/styles.css';
+</script>
+
+<section>
+  <h2>Profile</h2>
+  <p>Public account details.</p>
+  <Separator />
+  <h2>Security</h2>
+  <p>Authentication and active sessions.</p>
+</section>
+
+<div style="display: flex; align-items: center;">
+  <Button type="button" variant="ghost">Cut</Button>
+  <Separator orientation="vertical" decorative />
+  <Button type="button" variant="ghost">Copy</Button>
+</div>
 ```
 
 ### Component styling
