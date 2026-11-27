@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button, Input } from '../../src/lib/index.js';
+  import { Button, Checkbox, Input, Radio, RadioGroup } from '../../src/lib/index.js';
 
   let keyboardActivations = $state(0);
   let disabledActivations = $state(0);
@@ -23,6 +23,12 @@
   let dynamicType = $state<'text' | 'checkbox'>('text');
   let dynamicText = $state('switchable');
   let dynamicChecked = $state(false);
+  let cbControlled = $state(false);
+  let cbIndeterminate = $state(true);
+  let cbChanges = $state(0);
+  let rgPlan = $state('pro');
+  let rgChanges = $state(0);
+  let rgSubmissions = $state(0);
 </script>
 
 <section data-svelix-theme="light">
@@ -347,6 +353,84 @@
 
   <button id="plain-button">Plain button</button>
   <input id="plain-input" aria-label="Plain input" />
+  <input id="plain-checkbox" type="checkbox" aria-label="Plain checkbox" />
+  <fieldset id="plain-fieldset"><legend>Plain group</legend></fieldset>
+
+  <form
+    id="selection-form"
+    onsubmit={(event) => {
+      event.preventDefault();
+      rgSubmissions += 1;
+    }}
+  >
+    <span id="selection-tab-start" tabindex="-1"></span>
+    <label for="cb-controlled">Controlled checkbox</label>
+    <Checkbox
+      id="cb-controlled"
+      name="cb-controlled"
+      value="yes"
+      bind:checked={cbControlled}
+      bind:indeterminate={cbIndeterminate}
+      onchange={() => (cbChanges += 1)}
+    />
+    <label for="cb-disabled">Disabled checkbox</label>
+    <Checkbox id="cb-disabled" name="cb-disabled" value="no" disabled checked />
+    <label>
+      <Checkbox id="cb-uncontrolled" name="cb-uncontrolled" value="on" defaultChecked />
+      Uncontrolled checkbox
+    </label>
+
+    <RadioGroup id="rg-plan" legend="Billing plan" name="plan" bind:value={rgPlan}>
+      <label>
+        <Radio id="rg-plan-basic" value="basic" onchange={() => (rgChanges += 1)} />
+        Basic
+      </label>
+      <label>
+        <Radio id="rg-plan-disabled" value="legacy" disabled />
+        Legacy
+      </label>
+      <label>
+        <Radio id="rg-plan-pro" value="pro" onchange={() => (rgChanges += 1)} />
+        Pro
+      </label>
+    </RadioGroup>
+
+    <RadioGroup id="rg-uncontrolled" name="delivery">
+      {#snippet legend()}Delivery method{/snippet}
+      <label>
+        <Radio id="rg-delivery-standard" value="standard" defaultChecked />
+        Standard
+      </label>
+      <label>
+        <Radio id="rg-delivery-express" value="express" />
+        Express
+      </label>
+    </RadioGroup>
+
+    <RadioGroup id="rg-disabled-group" legend="Disabled group" name="locked" disabled>
+      <label>
+        <Radio id="rg-locked-a" value="a" defaultChecked />
+        Locked A
+      </label>
+      <label>
+        <Radio id="rg-locked-b" value="b" />
+        Locked B
+      </label>
+    </RadioGroup>
+
+    <Button id="selection-submit">Submit selection</Button>
+    <Button id="selection-reset" type="reset" variant="ghost">Reset selection</Button>
+    <Button
+      id="selection-reset-then-set"
+      type="button"
+      variant="secondary"
+      onclick={() => {
+        const form = document.getElementById('selection-form');
+        if (form instanceof HTMLFormElement) form.reset();
+        rgPlan = 'basic';
+      }}
+    >Reset then set basic</Button>
+  </form>
 
   <output id="keyboard-count">{keyboardActivations}</output>
   <output id="disabled-count">{disabledActivations}</output>
@@ -369,12 +453,22 @@
   <output id="dynamic-type">{dynamicType}</output>
   <output id="dynamic-text">{dynamicText}</output>
   <output id="dynamic-checked">{String(dynamicChecked)}</output>
+  <output id="cb-controlled-value">{String(cbControlled)}</output>
+  <output id="cb-indeterminate-value">{String(cbIndeterminate)}</output>
+  <output id="cb-changes-value">{cbChanges}</output>
+  <output id="rg-plan-value">{rgPlan}</output>
+  <output id="rg-changes-value">{rgChanges}</output>
+  <output id="rg-submissions-value">{rgSubmissions}</output>
 </section>
 
 <section data-svelix-theme="dark" id="dark-theme">
   <Button id="dark-primary">Dark primary</Button>
   <Input id="dark-email" type="email" aria-label="Dark email" value="dark@example.com" />
   <Input id="dark-checkbox" type="checkbox" aria-label="Dark checkbox" checked />
+  <Checkbox id="dark-svelix-checkbox" aria-label="Dark Svelix checkbox" defaultChecked />
+  <RadioGroup id="dark-radio-group" legend="Dark options" name="dark-opt">
+    <label><Radio id="dark-radio-a" value="a" defaultChecked /> Option A</label>
+  </RadioGroup>
 </section>
 
 <style>

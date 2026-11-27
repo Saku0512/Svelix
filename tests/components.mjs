@@ -913,6 +913,185 @@ try {
     textOutput: 'switchable'
   });
 
+  // Checkbox と RadioGroup / Radio のセマンティクス・初期状態・アクセシブルネーム・スタイルを検証する。
+  const selectionInitial = await evaluate(`(() => {
+    const cb = document.getElementById('cb-controlled');
+    const cbUncontrolled = document.getElementById('cb-uncontrolled');
+    const cbDisabled = document.getElementById('cb-disabled');
+    const rgPlan = document.getElementById('rg-plan');
+    const rgUncontrolled = document.getElementById('rg-uncontrolled');
+    const rgDisabled = document.getElementById('rg-disabled-group');
+    const planPro = document.getElementById('rg-plan-pro');
+    return {
+      cbTag: cb.tagName,
+      cbType: cb.type,
+      cbChecked: cb.checked,
+      cbIndeterminate: cb.indeterminate,
+      cbMatchesIndeterminate: cb.matches(':indeterminate'),
+      cbLabel: cb.labels[0]?.textContent?.trim(),
+      cbUncontrolledChecked: cbUncontrolled.checked,
+      cbUncontrolledLabel: cbUncontrolled.labels[0]?.textContent?.trim(),
+      cbDisabled: cbDisabled.disabled,
+      rgTag: rgPlan.tagName,
+      rgRole: rgPlan.getAttribute('role'),
+      rgLegendTag: rgPlan.firstElementChild?.tagName,
+      rgLegendText: rgPlan.firstElementChild?.textContent?.trim(),
+      rgSnippetLegendText: rgUncontrolled.firstElementChild?.textContent?.trim(),
+      rgDisabled: rgDisabled.disabled,
+      planProName: planPro.name,
+      planProRole: planPro.getAttribute('role'),
+      planProChecked: planPro.checked,
+      deliveryStandardChecked: document.getElementById('rg-delivery-standard').checked,
+      formData: Object.fromEntries(new FormData(document.getElementById('selection-form'))),
+      styles: {
+        cbAccent: getComputedStyle(cb).accentColor,
+        plainCbAccent: getComputedStyle(document.getElementById('plain-checkbox')).accentColor,
+        rgBorderColor: getComputedStyle(rgPlan).borderColor,
+        plainFieldsetBorderColor: getComputedStyle(document.getElementById('plain-fieldset')).borderColor,
+        darkCbAccent: getComputedStyle(document.getElementById('dark-svelix-checkbox')).accentColor,
+        darkRadioAccent: getComputedStyle(document.getElementById('dark-radio-a')).accentColor,
+        darkRgBorder: getComputedStyle(document.getElementById('dark-radio-group')).borderColor
+      }
+    };
+  })()`);
+  assert.equal(selectionInitial.cbTag, 'INPUT');
+  assert.equal(selectionInitial.cbType, 'checkbox');
+  assert.equal(selectionInitial.cbChecked, false);
+  assert.equal(selectionInitial.cbIndeterminate, true);
+  assert.equal(selectionInitial.cbMatchesIndeterminate, true);
+  assert.equal(selectionInitial.cbLabel, 'Controlled checkbox');
+  assert.equal(selectionInitial.cbUncontrolledChecked, true);
+  assert.equal(selectionInitial.cbUncontrolledLabel, 'Uncontrolled checkbox');
+  assert.equal(selectionInitial.cbDisabled, true);
+  assert.equal(selectionInitial.rgTag, 'FIELDSET');
+  assert.equal(selectionInitial.rgRole, null, 'native fieldset must not add redundant ARIA role');
+  assert.equal(selectionInitial.rgLegendTag, 'LEGEND');
+  assert.equal(selectionInitial.rgLegendText, 'Billing plan');
+  assert.equal(selectionInitial.rgSnippetLegendText, 'Delivery method');
+  assert.equal(selectionInitial.rgDisabled, true);
+  assert.equal(selectionInitial.planProName, 'plan');
+  assert.equal(selectionInitial.planProRole, null, 'native radio must not add redundant ARIA role');
+  assert.equal(selectionInitial.planProChecked, true);
+  assert.equal(selectionInitial.deliveryStandardChecked, true);
+  assert.deepEqual(selectionInitial.formData, {
+    'cb-uncontrolled': 'on',
+    plan: 'pro',
+    delivery: 'standard'
+  });
+  assert.equal(selectionInitial.styles.cbAccent, 'rgb(29, 78, 216)');
+  assert.notEqual(selectionInitial.styles.plainCbAccent, 'rgb(29, 78, 216)');
+  assert.equal(selectionInitial.styles.rgBorderColor, 'rgb(100, 116, 139)');
+  assert.notEqual(selectionInitial.styles.plainFieldsetBorderColor, 'rgb(100, 116, 139)');
+  assert.equal(selectionInitial.styles.darkCbAccent, 'rgb(147, 197, 253)');
+  assert.equal(selectionInitial.styles.darkRadioAccent, 'rgb(147, 197, 253)');
+  assert.equal(selectionInitial.styles.darkRgBorder, 'rgb(148, 163, 184)');
+
+  // Checkbox のキーボード操作（Tab, Space, indeterminate 解除, disabled スキップ）を検証する。
+  await evaluate(`document.getElementById('selection-tab-start').focus()`);
+  await key('Tab', 'Tab', 9);
+  assert.equal(await evaluate(`document.activeElement.id`), 'cb-controlled');
+  assert.equal(await evaluate(`getComputedStyle(document.activeElement).outlineStyle`), 'solid');
+  await key(' ', 'Space', 32);
+  assert.deepEqual(await evaluate(`({
+    checked: document.getElementById('cb-controlled').checked,
+    indeterminate: document.getElementById('cb-controlled').indeterminate,
+    checkedOutput: document.getElementById('cb-controlled-value').value,
+    indeterminateOutput: document.getElementById('cb-indeterminate-value').value,
+    changes: document.getElementById('cb-changes-value').value
+  })`), {
+    checked: true,
+    indeterminate: false,
+    checkedOutput: 'true',
+    indeterminateOutput: 'false',
+    changes: '1'
+  });
+
+  // 無効化されたチェックボックスは Tab 順序からスキップされ、uncontrolled checkbox へ移動する。
+  await key('Tab', 'Tab', 9);
+  assert.equal(await evaluate(`document.activeElement.id`), 'cb-uncontrolled');
+  await key(' ', 'Space', 32);
+  assert.equal(await evaluate(`document.getElementById('cb-uncontrolled').checked`), false);
+
+  // RadioGroup のキーボード操作（Tab で選択中ラジオへ移動、ArrowUp で disabled をスキップして移動）を検証する。
+  await key('Tab', 'Tab', 9);
+  assert.equal(await evaluate(`document.activeElement.id`), 'rg-plan-pro');
+  assert.equal(await evaluate(`getComputedStyle(document.activeElement).outlineStyle`), 'solid');
+  await key('ArrowUp', 'ArrowUp', 38);
+  assert.deepEqual(await evaluate(`({
+    activeId: document.activeElement.id,
+    basicChecked: document.getElementById('rg-plan-basic').checked,
+    proChecked: document.getElementById('rg-plan-pro').checked,
+    planOutput: document.getElementById('rg-plan-value').value,
+    changes: document.getElementById('rg-changes-value').value
+  })`), {
+    activeId: 'rg-plan-basic',
+    basicChecked: true,
+    proChecked: false,
+    planOutput: 'basic',
+    changes: '1'
+  });
+
+  // 非制御 RadioGroup へ Tab で移動し ArrowDown で切り替え、続く disabled RadioGroup はスキップされる。
+  await key('Tab', 'Tab', 9);
+  assert.equal(await evaluate(`document.activeElement.id`), 'rg-delivery-standard');
+  await key('ArrowDown', 'ArrowDown', 40);
+  assert.equal(await evaluate(`document.getElementById('rg-delivery-express').checked`), true);
+  await key('Tab', 'Tab', 9);
+  assert.equal(
+    await evaluate(`document.activeElement.id`),
+    'selection-submit',
+    'disabled fieldset radio group must be skipped in tab order'
+  );
+
+  // フォーム送信時の FormData と、ユーザー操作によるリセット、リセット直後の値書き込み保護を検証する。
+  assert.deepEqual(
+    await evaluate(`Object.fromEntries(new FormData(document.getElementById('selection-form')))`),
+    {
+      'cb-controlled': 'yes',
+      plan: 'basic',
+      delivery: 'express'
+    }
+  );
+  await evaluate(`document.getElementById('selection-submit').click(); Promise.resolve()`);
+  assert.equal(await evaluate(`document.getElementById('rg-submissions-value').value`), '1');
+
+  await mouseClick('selection-reset');
+  assert.deepEqual(await evaluate(`({
+    cbControlled: document.getElementById('cb-controlled').checked,
+    cbControlledOutput: document.getElementById('cb-controlled-value').value,
+    cbUncontrolled: document.getElementById('cb-uncontrolled').checked,
+    rgPlan: document.getElementById('rg-plan-value').value,
+    rgProChecked: document.getElementById('rg-plan-pro').checked,
+    rgDeliveryStandard: document.getElementById('rg-delivery-standard').checked,
+    formData: Object.fromEntries(new FormData(document.getElementById('selection-form')))
+  })`), {
+    cbControlled: false,
+    cbControlledOutput: 'false',
+    cbUncontrolled: true,
+    rgPlan: 'pro',
+    rgProChecked: true,
+    rgDeliveryStandard: true,
+    formData: {
+      'cb-uncontrolled': 'on',
+      plan: 'pro',
+      delivery: 'standard'
+    }
+  });
+
+  await evaluate(`
+    document.getElementById('selection-reset-then-set').click();
+    new Promise((resolve) => setTimeout(resolve, 0));
+  `);
+  assert.deepEqual(await evaluate(`({
+    rgPlan: document.getElementById('rg-plan-value').value,
+    rgBasicChecked: document.getElementById('rg-plan-basic').checked,
+    rgProChecked: document.getElementById('rg-plan-pro').checked
+  })`), {
+    rgPlan: 'basic',
+    rgBasicChecked: true,
+    rgProChecked: false
+  });
+
   console.log(`Component fixture passed in ${executable}.`);
 } finally {
   rejectPending(new Error('Component fixture is shutting down'));

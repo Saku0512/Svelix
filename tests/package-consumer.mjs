@@ -38,7 +38,7 @@ try {
     throw new Error(`Expected consumer Svelte 5.59.0, got ${installedSvelte.version}`);
   }
   writeFileSync(join(fixture, 'consumer.ts'), `import type { ComponentProps } from 'svelte';
-import { Button, Input } from 'svelix';
+import { Button, Checkbox, Input, Radio, RadioGroup } from 'svelix';
 
 const button: ComponentProps<typeof Button> = {
   variant: 'outline',
@@ -78,11 +78,49 @@ const file: ComponentProps<typeof Input> = {
   type: 'file',
   files: undefined
 };
+const svelixCheckbox: ComponentProps<typeof Checkbox> = {
+  name: 'terms',
+  value: 'yes',
+  checked: false,
+  indeterminate: true,
+  defaultChecked: false,
+  onchange: (event) => event.currentTarget.checked
+};
+const svelixRadioGroup: ComponentProps<typeof RadioGroup> = {
+  legend: 'Billing plan',
+  name: 'plan',
+  value: 'pro',
+  disabled: false
+};
+const svelixRadio: ComponentProps<typeof Radio> = {
+  value: 'pro',
+  disabled: false,
+  onchange: (event) => event.currentTarget.value
+};
 // @ts-expect-error variants are intentionally limited
 const invalidButton: ComponentProps<typeof Button> = { variant: 'danger' };
 // @ts-expect-error native input elements cannot have children
 const invalidInput: ComponentProps<typeof Input> = { children: () => {} };
-void [button, input, checkbox, radio, unboundRadio, checkboxGroup, file, invalidButton, invalidInput];
+// @ts-expect-error Checkbox fixes input type to checkbox
+const invalidCheckboxType: ComponentProps<typeof Checkbox> = { type: 'text' };
+// @ts-expect-error Radio fixes input type to radio
+const invalidRadioType: ComponentProps<typeof Radio> = { type: 'checkbox' };
+void [
+  button,
+  input,
+  checkbox,
+  radio,
+  unboundRadio,
+  checkboxGroup,
+  file,
+  svelixCheckbox,
+  svelixRadioGroup,
+  svelixRadio,
+  invalidButton,
+  invalidInput,
+  invalidCheckboxType,
+  invalidRadioType
+];
 `);
   writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({
     compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true, noEmit: true, skipLibCheck: true },
@@ -92,10 +130,13 @@ void [button, input, checkbox, radio, unboundRadio, checkboxGroup, file, invalid
   writeFileSync(join(fixture, 'index.html'), '<div id="app"></div><script type="module" src="/main.js"></script>');
   writeFileSync(join(fixture, 'main.js'), "import 'svelix';\nimport 'svelix/styles.css';\nimport App from './App.svelte';\nimport { mount } from 'svelte';\nmount(App, { target: document.getElementById('app') });\n");
   writeFileSync(join(fixture, 'App.svelte'), `<script>
-  import { Button, Input } from 'svelix';
+  import { Button, Checkbox, Input, Radio, RadioGroup } from 'svelix';
   let email = $state('');
   let size = $state('m');
   let toppings = $state([]);
+  let terms = $state(false);
+  let mixed = $state(true);
+  let plan = $state('pro');
 </script>
 
 <form>
@@ -105,6 +146,11 @@ void [button, input, checkbox, radio, unboundRadio, checkboxGroup, file, invalid
   <Input type="radio" name="size" value="m" bind:group={size} />
   <Input type="checkbox" value="rice" bind:group={toppings} />
   <Input type="radio" name="plain" value="b" checked />
+  <label><Checkbox name="terms" value="yes" bind:checked={terms} bind:indeterminate={mixed} /> Terms</label>
+  <RadioGroup legend="Plan" name="plan" bind:value={plan}>
+    <label><Radio value="basic" /> Basic</label>
+    <label><Radio value="pro" /> Pro</label>
+  </RadioGroup>
   <Button variant="outline">Submit</Button>
 </form>
 `);
