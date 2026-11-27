@@ -293,7 +293,7 @@ try {
   assert.equal(await evaluate(`document.body?.dataset.ready`), 'true', 'fixture did not mount');
 
   const details = await evaluate(`(() => {
-    const style = (id) => getComputedStyle(document.getElementById(id));
+    const style = (id, pseudo) => getComputedStyle(document.getElementById(id), pseudo);
     const email = document.getElementById('email');
     const invalid = document.getElementById('invalid');
     const nativeInvalid = document.getElementById('native-invalid');
@@ -345,6 +345,8 @@ try {
         ghost: style('ghost').backgroundColor,
         disabled: style('disabled').backgroundColor,
         disabledInput: style('disabled-input').backgroundColor,
+        placeholderColor: style('tab-input', '::placeholder').color,
+        placeholderOpacity: style('tab-input', '::placeholder').opacity,
         customButton: style('custom-button').backgroundColor,
         invalidBorder: style('invalid').borderColor,
         readonly: style('readonly').backgroundColor,
@@ -410,6 +412,8 @@ try {
   assert.equal(details.styles.ghost, 'rgba(0, 0, 0, 0)');
   assert.equal(details.styles.disabled, 'rgb(241, 245, 249)');
   assert.equal(details.styles.disabledInput, 'rgb(241, 245, 249)');
+  assert.equal(details.styles.placeholderColor, 'rgb(71, 85, 105)');
+  assert.equal(details.styles.placeholderOpacity, '1');
   assert.equal(details.styles.customButton, 'rgb(4, 120, 87)');
   assert.equal(details.styles.invalidBorder, 'rgb(185, 28, 28)');
   assert.equal(details.styles.readonly, 'rgb(241, 245, 249)');
