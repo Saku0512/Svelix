@@ -1,22 +1,43 @@
 # Svelix
-A compiler-first UI library for Svelte, inspired by the Unix philosophy.  Small, composable, native, and minimal by design.
 
-## Development
+A compiler-first UI library for Svelte, inspired by the Unix philosophy. Small, composable, native, and minimal by design.
 
-Use Node.js 24 LTS for development. The checks for this revision were verified with Node.js 24.18.0 and npm 12.0.1. This is a development-tool requirement, not a statement about consumers' runtime or browser compatibility. Svelix requires Svelte 5.59.0 or newer (`peerDependencies: svelte@^5.59.0`). That is the verified minimum for this repository's toolchain: Input needs `defaultValue` / `defaultChecked` (added in 5.6.0), and the locked `@sveltejs/vite-plugin-svelte@7.3.2` resolves Svelte internals that exist from 5.59.0. `npm run test:package` installs Svelte 5.59.0 into the consumer fixture to exercise that floor. Install the locked dependencies with `npm ci`, then run `npm run check` and `npm run build`. The build writes the distributable package to `dist/`.
+Svelix v0.1.0 is a conventional Svelte 5 component library that works with the standard Svelte toolchain. It does not require a custom compiler, preprocessor, CSS framework, or runtime dependency.
 
-Run `npm test` to execute the verification suite (`test:theme`, `test:components`, `test:ssr`, `test:bundle`, and `test:package`), or run individual checks directly. Tests that consume `dist/` (`test:ssr`, `test:bundle`, and `test:package`) verify a content-hash stamp against `src/`, `package.json`, `package-lock.json`, `tsconfig.json`, and `dist/` (`tests/ensure-fresh-dist.mjs`), automatically rebuilding when `dist/` is missing or stale and reusing the verified build across consecutive scripts. This cache covers repository build inputs and the locked dependency graph; it does not fingerprint arbitrary host-environment changes, so development and CI use the documented Node.js version and `npm ci`:
+## Design philosophy
 
-- `npm run test:theme`: checks the theme fixture in headless Chromium. It needs a local Chrome or Chromium binary and does not add a browser package. Set `CHROME_PATH` when the binary is not `google-chrome` on `PATH`. Set `THEME_SCREENSHOT_DIR` to write light and dark PNG captures of the fixture.
-- `npm run test:components`: builds the component fixture and verifies native form, keyboard, disabled, validation, binding, styling, scoped-style, `forced-colors`, and Chrome DevTools Accessibility Tree behavior across all six v0.1.0 component areas (`Button`, `Input`, `Checkbox`, `RadioGroup`/`Radio`, `Label`, `Separator`).
-- `npm run test:ssr`: renders all six component areas on the server via `svelte/server`, hydrates the exact server markup in headless Chromium via `svelte`, and verifies deterministic `$props.id()` radio-group names, in-place DOM node retention (`===`), zero hydration warnings or runtime errors, and post-hydration interactivity and form reset.
-- `npm run test:bundle`: packs the built `svelix` tarball into an isolated consumer, runs representative Vite production builds (`styles-only`, `button-only`, `label-and-separator`, `radio-group-only`, and `all-components`), verifies via production chunk module metadata (`renderedLength`) and emitted CSS selectors across all seven public exports that unused component JavaScript and CSS are eliminated while `svelix/styles.css` tokens survive via `sideEffects`, verifies that modified sources invalidate stale `dist/` artifacts, and reports raw, gzip, and Brotli asset sizes. Even a styles-only Vite application emits client entry/runtime bootstrap code, so Svelix does not claim "zero JavaScript" without inspecting actual production output.
-- `npm run test:package`: packs the library, installs it in a temporary Svelte application against Svelte 5.59.0, type-checks accepted and rejected public props, and builds that application.
-- `npm run test:package:clean`: runs a clean `npm ci` install and repeat-build hash comparison of the actual source, followed by an external consumer build. It requires npm registry access.
+- **Small by default:** ship focused components, scoped CSS, and tree-shakeable entry points.
+- **Native first:** preserve semantic HTML, browser form behavior, keyboard interaction, and platform accessibility.
+- **Composable:** forward native attributes and events instead of replacing them with large configuration APIs.
+- **Explicit:** keep state ownership, theme selection, and validation behavior visible to the consumer.
+- **Evidence over claims:** verify package output, SSR/hydration, accessibility semantics, and bundle behavior with reproducible checks.
 
-GitHub Actions CI (`.github/workflows/ci.yml`) runs `npm ci`, whitespace checks, `npm run check`, `npm run build`, `npm test`, and `npm run test:package:clean` on pull requests and `main` / `release_v*` pushes.
+## Installation
 
-The package exposes Button, Input, Checkbox, RadioGroup, Radio, Label, and Separator from `svelix`, and its shared CSS from `svelix/styles.css`.
+Svelix requires Svelte 5.59.0 or newer within the Svelte 5 release line.
+
+```sh
+npm install svelix
+```
+
+Import the shared stylesheet once near the root of the application, then import only the components that are needed:
+
+```svelte
+<script lang="ts">
+  import { Button, Input, Label } from 'svelix';
+  import 'svelix/styles.css';
+
+  let email = $state('');
+</script>
+
+<form>
+  <Label for="email">Email address</Label>
+  <Input id="email" name="email" type="email" bind:value={email} required />
+  <Button>Subscribe</Button>
+</form>
+```
+
+Svelix does not add application-level resets, fonts, page colors, validation messages, or form-submission logic. The consuming application remains responsible for those concerns.
 
 ## Components
 
@@ -25,6 +46,14 @@ Import the shared stylesheet once in the application, then import components fro
 ### Button
 
 Button renders a native `<button>` and forwards native button attributes and event callbacks. It does not supply a `type`, so the browser default remains `submit` inside a form. Set `type="button"` for non-submit actions. The available variants are `primary` (default), `secondary`, `outline`, and `ghost`.
+
+#### API
+
+| Svelix prop | Type | Default | Behavior |
+| --- | --- | --- | --- |
+| `variant` | `'primary' \| 'secondary' \| 'outline' \| 'ghost'` | `'primary'` | Selects the component style through `data-svelix-variant`. |
+
+All native `HTMLButtonAttributes` are forwarded, including `type`, `disabled`, `name`, `value`, `form*`, `aria-*`, `data-*`, and event callbacks. Child content is rendered inside the native button.
 
 ```svelte
 <script lang="ts">
@@ -43,6 +72,19 @@ Button content normally provides its accessible name. Icon-only buttons must rec
 ### Input
 
 Input renders a native `<input>`, forwards native attributes and event callbacks, and applies the Svelte binding that matches the input type. `type` matching is ASCII case-insensitive.
+
+#### API
+
+| Svelix prop / binding | Type | Default | Behavior |
+| --- | --- | --- | --- |
+| `type` | Native input type string | `'text'` | Selects the native input type and corresponding binding. |
+| `bind:value` | Native input value type | `undefined` | Used by text-like and other value-based inputs. |
+| `bind:checked` | `boolean` | `undefined` | Used by ungrouped checkbox and radio inputs. |
+| `bind:files` | `FileList \| undefined` | `undefined` | Used by file inputs; browsers do not accept a path string. |
+| `bind:group` | `string \| number \| boolean \| Array<string \| number \| boolean> \| null` | omitted | Enables reactive radio or checkbox grouping. |
+| `defaultChecked` | `boolean` | inferred from initial state | Sets the mount-time form-reset baseline for checkbox and radio inputs. |
+
+All other native `HTMLInputAttributes` except `children` are forwarded.
 
 | `type` | Binding |
 | --- | --- |
@@ -105,6 +147,16 @@ Use a visible `<label>` associated with `for` and `id`; a placeholder is not a l
 
 `Checkbox` renders a native `<input type="checkbox">` and forwards `HTMLInputAttributes` (omitting `type` and `children`). It supports both controlled/bound and uncontrolled state ownership:
 
+#### API
+
+| Svelix prop / binding | Type | Default | Behavior |
+| --- | --- | --- | --- |
+| `bind:checked` | `boolean` | omitted | Enables controlled/bound ownership; omit it for browser-owned state. |
+| `bind:indeterminate` | `boolean` | `false` | Synchronizes the DOM `indeterminate` property. |
+| `defaultChecked` | `boolean` | `undefined` | Sets the initial and form-reset checked state. |
+
+Native input attributes and event callbacks are forwarded except `type` and `children`; the rendered input type is always `checkbox`.
+
 - **Controlled / bound**: Pass `bind:checked` (or `checked`). The mount-time `defaultChecked` (or initial `checked`) is snapshotted so native `form.reset()` restores the baseline and syncs the binding.
 - **Uncontrolled**: Omit `checked` and optionally pass `defaultChecked`. The browser owns checked state and form reset natively.
 - **Indeterminate**: Pass `indeterminate` or `bind:indeterminate` to control the DOM `indeterminate` property (for example, partial "select all" state). User activation clears `indeterminate` natively and updates the binding.
@@ -132,6 +184,27 @@ Always associate each `Checkbox` with a visible `<label>` using `for`/`id` or by
 ### RadioGroup and Radio
 
 `RadioGroup` renders a native `<fieldset>` with an optional `<legend>` (`legend` prop accepts a string or a Svelte snippet; omit it to place your own `<legend>` as the first child). `Radio` renders a native `<input type="radio">` and forwards `HTMLInputAttributes` (omitting `type` and `children`). No custom ARIA radio widget or focus-management layer is introduced; native arrow-key navigation, `Tab` order, `disabled` skipping, and `FormData` submission are preserved.
+
+#### RadioGroup API
+
+| Svelix prop / binding | Type | Default | Behavior |
+| --- | --- | --- | --- |
+| `legend` | `string \| Snippet` | `undefined` | Renders the group label in a native `<legend>`. |
+| `name` | `string` | generated | Sets the shared radio name; blank or omitted values receive an SSR-safe name. |
+| `bind:value` | `string \| null` | omitted | Enables controlled/bound selection; `null` represents no selection. |
+
+Native `HTMLFieldsetAttributes`, including `disabled`, are forwarded. Child content is rendered inside the fieldset.
+
+#### Radio API
+
+| Svelix prop | Type | Default | Behavior |
+| --- | --- | --- | --- |
+| `value` | Native input value | `'on'` | Supplies the DOM value, `FormData` value, and group model value. |
+| `checked` | `boolean` | `undefined` | Controls checked state outside a controlled `RadioGroup`. |
+| `defaultChecked` | `boolean` | `undefined` | Sets the initial and form-reset checked state. |
+| `name` | `string` | inherited/generated in a group | Used outside `RadioGroup`; the group name wins inside one. |
+
+Native input attributes and event callbacks are forwarded except `type` and `children`; the rendered input type is always `radio`.
 
 - **Shared `name`**: Set `name` on `RadioGroup` so descendant `Radio` controls form one native radio group (when omitted or blank, `RadioGroup` generates an SSR-safe unique name; inside a `RadioGroup`, the group's `name` always wins so native mutual exclusion stays aligned with the group model).
 - **Controlled / bound**: Pass `bind:value` on `RadioGroup` with a non-`undefined` initial value (`string` or `null` for no selection; omit `value` for uncontrolled mode). Omitting `value` on a `Radio` uses the native `"on"` default consistently across DOM, `FormData`, and `bind:value`. Native `form.reset()` syncs only owned `Radio` controls belonging to the reset form—restoring the form's checked default or clearing to `null` when no option in that form has a checked default—and preserves newer application writes immediately after `reset()`.
@@ -162,6 +235,10 @@ Always associate each `Checkbox` with a visible `<label>` using `for`/`id` or by
 ### Label
 
 `Label` renders a semantic `<label>` and forwards `HTMLLabelAttributes` (`for`, `form`, `id`, `class`, event callbacks, and ARIA/data attributes). It does not generate hidden IDs or implicit context relationships; associate it explicitly via `for` and `id` or implicitly by wrapping a single labelable control.
+
+#### API
+
+`Label` adds no Svelix-specific props. It forwards native `HTMLLabelAttributes` and renders child content inside the native label.
 
 ```svelte
 <script lang="ts">
@@ -212,7 +289,7 @@ Always associate each `Checkbox` with a visible `<label>` using `for`/`id` or by
 
 ### Component styling
 
-Button and Input styles are scoped and consume the shared tokens documented below. Override a token on a component class to customize one instance, or set ordinary CSS properties on that class. Component rules use zero-specificity `:where(...)` selectors so a consumer class can override defaults without `!important`.
+Component styles are scoped and consume the shared tokens documented below. Override a token on a component class to customize one instance, or set ordinary CSS properties on that class. Component rules use zero-specificity `:where(...)` selectors so a consumer class can override defaults without `!important`.
 
 ```svelte
 <Button class="confirm">Confirm</Button>
@@ -271,7 +348,7 @@ Public token names use `--svelix-<semantic-role>`, with `-sm` / `-md` suffixes f
 
 Exact default values are defined in [src/lib/styles.css](src/lib/styles.css). There are no duration or easing tokens. Button, Input, Checkbox, Radio Group, Label, and Separator do not animate, so a motion scale would be a public API with no consumer. The stylesheet also does not set `color-scheme`, `prefers-color-scheme`, or `prefers-reduced-motion`.
 
-Components should consume these semantic tokens rather than duplicate palette values. The v0.1.0 components are implemented by #5, #6, and #7; this stylesheet does not ship those components. Their styles should use the tokens below:
+The v0.1.0 components consume these semantic tokens rather than duplicating palette values:
 
 | Component need | Tokens |
 | --- | --- |
@@ -290,7 +367,7 @@ Components should consume these semantic tokens rather than duplicate palette va
 
 Disabled controls use the muted colors rather than an opacity token. Opacity would also fade a focus ring, and the component issues do not ask for a separate disabled opacity. Hover and active colors are not part of those issues, so they are not tokens yet.
 
-Because `color-scheme` is not set, an Input implementation has to paint `background`, `color`, and `border` from tokens itself. Native checkbox and radio marks should use `accent-color: var(--svelix-primary)` instead of relying on the user agent's color scheme.
+Because `color-scheme` is not set, Svelix Input paints `background`, `color`, and `border` from the shared tokens. Checkbox and radio marks use `accent-color: var(--svelix-primary)` instead of relying on the user agent's color scheme.
 
 For example, the following is an illustrative style, not a shipped Svelix component:
 
@@ -330,7 +407,7 @@ Keyboard focus is the supported check. Programmatic `element.focus()`, including
 
 To inspect the same page manually, serve the repository root and open `tests/theme.html`, then press Tab through the primary button, the text field, and the dark-theme primary button until the page says PASS. The automated command is the project check. The package build and consumer checks remain required to verify the exported stylesheet.
 
-### Accessibility and verification scope
+## Accessibility
 
 Automated browser and Accessibility Tree checks (`npm run test:components`, `npm run test:theme`, and `npm run test:ssr`) verify native HTML tags, ARIA attributes, computed accessible names and descriptions, exposed states (`checked`, `mixed`, `disabled`, `required`, `readonly`, `invalid`, `orientation`, and `ignored` for decorative separators), sequential keyboard focus, `:focus-visible` outlines, and `forced-colors` border retention in headless Chromium.
 
@@ -340,3 +417,55 @@ Automated checks cannot prove full WCAG conformance. The following checks requir
 - Cross-browser rendering and interaction checks in Firefox and Safari/WebKit (including Safari `accent-color` indicator contrast in light and dark themes).
 - Operating-system High Contrast / Contrast Themes testing beyond Chromium media-feature emulation.
 - Page-level zoom (up to 200%–400%), text-spacing overrides, touch-target spacing in dense consumer layouts, and cognitive/copy clarity of application labels and error messages.
+
+## Compatibility
+
+| Area | Verified scope for v0.1.0 |
+| --- | --- |
+| Svelte | `5.59.0` minimum in an isolated packed consumer; the locked development version is also checked. |
+| Toolchain | Standard Svelte 5 compilation with `@sveltejs/package` and Vite; no SvelteKit or custom preprocessor is required. |
+| SSR/hydration | Server rendering plus in-place hydration and post-hydration interaction are tested. |
+| Browser automation | Google Chrome 158 on Linux is the release-check environment. Firefox and Safari/WebKit remain manual checks. |
+| TypeScript | Generated declarations and accepted/rejected public props are checked from the packed package. |
+| Node.js | Node.js 24 LTS is the repository development and release-check environment, not a broad consumer-runtime compatibility claim. |
+
+The components primarily use native HTML, CSS, and form behavior, but v0.1.0 does not claim compatibility with browsers or assistive technologies outside the environments actually tested above.
+
+## Development and verification
+
+Use Node.js 24 LTS for repository development. The v0.1.0 release checks use Node.js 24.18.0 and npm 12.0.1.
+
+```sh
+npm ci
+npm run check
+npm run build
+npm test
+```
+
+The build writes the distributable package to `dist/`. `npm test` runs the theme, component/browser, SSR/hydration, production bundle, and packed consumer checks. Tests that consume `dist/` verify a content-hash stamp against `src/`, `package.json`, `package-lock.json`, `tsconfig.json`, and `dist/`, rebuilding stale output once and reusing it across consecutive scripts.
+
+Additional commands:
+
+- `npm run test:theme`: verifies tokens, theme scopes, host isolation, contrast pairs, reduced motion, and keyboard focus in headless Chromium.
+- `npm run test:components`: verifies native behavior, forms, bindings, styling, keyboard interaction, and Accessibility Tree semantics.
+- `npm run test:ssr`: verifies deterministic server output, hydration, DOM identity, diagnostics, interactions, and form reset.
+- `npm run test:bundle`: verifies production module/CSS elimination for representative imports and reports raw, gzip, and Brotli sizes.
+- `npm run test:package`: packs Svelix, verifies the package contents and metadata, installs it with Svelte 5.59.0, checks public types, and builds a consumer.
+- `npm run test:package:clean`: performs a clean locked install, compares repeat-build output hashes, and builds an external consumer. This command requires registry access.
+
+GitHub Actions repeats the locked install, whitespace check, type check, build, full test suite, and clean package verification on pull requests and on `main` / `release_v*` pushes.
+
+## Contributing
+
+See [CONTRIBUTING.md](https://github.com/Saku0512/Svelix/blob/main/CONTRIBUTING.md) for setup, branch, commit, test, and pull-request requirements. Repository artifacts, code comments, commits, and pull-request descriptions are written in English.
+
+## Changelog and releases
+
+- [CHANGELOG.md](CHANGELOG.md) records user-visible changes.
+- [v0.1.0 release notes](https://github.com/Saku0512/Svelix/blob/main/docs/releases/v0.1.0.md) contain the release summary, compatibility notes, verification evidence, and publication checklist.
+
+Creating a Git tag or publishing the npm package is a separate maintainer-authorized action. Preparing these documents does not publish or tag a release.
+
+## License
+
+Svelix is available under the [MIT License](LICENSE). Copyright (c) Saku0512.
