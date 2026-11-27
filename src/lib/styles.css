@@ -1,4 +1,5 @@
-/* Shared tokens only. Importing this file does not style host elements. */
+/* Shared tokens only. Importing this file does not style host elements.
+   No duration or easing tokens: the in-scope controls do not animate. */
 :where(:root) {
   --svelix-radius-sm: 0.25rem;
   --svelix-radius-md: 0.5rem;

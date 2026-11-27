@@ -50,7 +50,7 @@ Public token names use `--svelix-<semantic-role>`, with `-sm` / `-md` suffixes f
 | `spacing-xs`, `spacing-sm`, `spacing-md` | Padding and gaps |
 | `focus-ring`, `focus-ring-width`, `focus-ring-offset` | Visible keyboard focus |
 
-Exact default values are defined in [src/lib/styles.css](src/lib/styles.css).
+Exact default values are defined in [src/lib/styles.css](src/lib/styles.css). There are no duration or easing tokens. Button, Input, Checkbox, Radio Group, Label, and Separator do not animate, so a motion scale would be a public API with no consumer. The stylesheet also does not set `color-scheme`, `prefers-color-scheme`, or `prefers-reduced-motion`.
 
 Components should consume these semantic tokens rather than duplicate palette values. The v0.1.0 components are implemented by #5, #6, and #7; this stylesheet does not ship those components. Their styles should use the tokens below:
 
@@ -98,3 +98,7 @@ Override tokens with ordinary CSS on the theme scope or a descendant. The librar
 ```
 
 Apply the class directly to the desired scope; an explicitly themed nested scope resets its own color tokens.
+
+### Reduced motion and visible focus
+
+`prefers-reduced-motion` does not change these tokens, because nothing in the theme stylesheet animates or transitions. Visible focus is an instantaneous outline using the focus-ring tokens on `:focus-visible`. That outline stays in place when reduced motion is requested. A later component that introduces animation must add its own motion behavior and honor `prefers-reduced-motion: reduce` without removing the focus outline.
