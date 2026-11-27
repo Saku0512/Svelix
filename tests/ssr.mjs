@@ -357,22 +357,43 @@ try {
 
   assert.deepEqual(await evaluate(`({
     clicks: document.getElementById('ssr-clicks-out').value,
-    email: document.getElementById('ssr-email-out').value,
-    accepted: document.getElementById('ssr-accepted-out').value,
-    partial: document.getElementById('ssr-partial-out').value,
-    plan: JSON.parse(document.getElementById('ssr-plan-out').value),
-    mode: JSON.parse(document.getElementById('ssr-mode-out').value),
+    emailModel: document.getElementById('ssr-email-out').value,
+    emailDom: document.getElementById('ssr-email').value,
+    acceptedModel: document.getElementById('ssr-accepted-out').value,
+    acceptedDom: document.getElementById('ssr-checkbox').checked,
+    partialModel: document.getElementById('ssr-partial-out').value,
+    partialDom: document.getElementById('ssr-checkbox').indeterminate,
+    planModel: JSON.parse(document.getElementById('ssr-plan-out').value),
+    planBasicChecked: document.getElementById('ssr-plan-basic').checked,
+    planProChecked: document.getElementById('ssr-plan-pro').checked,
+    modeModel: JSON.parse(document.getElementById('ssr-mode-out').value),
+    modeLightChecked: document.getElementById('ssr-unnamed-light').checked,
+    modeDarkChecked: document.getElementById('ssr-unnamed-dark').checked,
     sepOrientation: document.getElementById('ssr-sep-dynamic').dataset.svelixOrientation,
-    sepAriaHidden: document.getElementById('ssr-sep-dynamic').getAttribute('aria-hidden')
+    sepAriaHidden: document.getElementById('ssr-sep-dynamic').getAttribute('aria-hidden'),
+    formData: Object.fromEntries(new FormData(document.getElementById('ssr-form')))
   })`), {
     clicks: '1',
-    email: 'grace@example.com',
-    accepted: 'true',
-    partial: 'false',
-    plan: 'basic',
-    mode: 'dark',
+    emailModel: 'grace@example.com',
+    emailDom: 'grace@example.com',
+    acceptedModel: 'true',
+    acceptedDom: true,
+    partialModel: 'false',
+    partialDom: false,
+    planModel: 'basic',
+    planBasicChecked: true,
+    planProChecked: false,
+    modeModel: 'dark',
+    modeLightChecked: false,
+    modeDarkChecked: true,
     sepOrientation: 'horizontal',
-    sepAriaHidden: 'true'
+    sepAriaHidden: 'true',
+    formData: {
+      email: 'grace@example.com',
+      accepted: 'yes',
+      plan: 'basic',
+      [ssrGeneratedRadioName]: 'dark'
+    }
   });
 
   await evaluate(`
@@ -380,15 +401,35 @@ try {
     new Promise((resolve) => setTimeout(resolve, 0));
   `);
   assert.deepEqual(await evaluate(`({
-    email: document.getElementById('ssr-email-out').value,
-    accepted: document.getElementById('ssr-accepted-out').value,
-    plan: JSON.parse(document.getElementById('ssr-plan-out').value),
-    mode: JSON.parse(document.getElementById('ssr-mode-out').value)
+    emailModel: document.getElementById('ssr-email-out').value,
+    emailDom: document.getElementById('ssr-email').value,
+    acceptedModel: document.getElementById('ssr-accepted-out').value,
+    acceptedDom: document.getElementById('ssr-checkbox').checked,
+    partialDom: document.getElementById('ssr-checkbox').indeterminate,
+    planModel: JSON.parse(document.getElementById('ssr-plan-out').value),
+    planBasicChecked: document.getElementById('ssr-plan-basic').checked,
+    planProChecked: document.getElementById('ssr-plan-pro').checked,
+    modeModel: JSON.parse(document.getElementById('ssr-mode-out').value),
+    modeLightChecked: document.getElementById('ssr-unnamed-light').checked,
+    modeDarkChecked: document.getElementById('ssr-unnamed-dark').checked,
+    formData: Object.fromEntries(new FormData(document.getElementById('ssr-form')))
   })`), {
-    email: 'ada@example.com',
-    accepted: 'false',
-    plan: 'pro',
-    mode: 'light'
+    emailModel: 'ada@example.com',
+    emailDom: 'ada@example.com',
+    acceptedModel: 'false',
+    acceptedDom: false,
+    partialDom: false,
+    planModel: 'pro',
+    planBasicChecked: false,
+    planProChecked: true,
+    modeModel: 'light',
+    modeLightChecked: true,
+    modeDarkChecked: false,
+    formData: {
+      email: 'ada@example.com',
+      plan: 'pro',
+      [ssrGeneratedRadioName]: 'light'
+    }
   });
 
   assert.deepEqual(diagnostics, [], 'post-hydration interactions produced unexpected warnings or errors');
