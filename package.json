@@ -20,9 +20,11 @@
   "scripts": {
     "build": "svelte-package",
     "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "npm run test:theme && npm run test:components && npm run test:ssr && npm run test:bundle && npm run test:package",
     "test:components": "node tests/components.mjs",
     "test:theme": "node tests/theme.mjs",
     "test:ssr": "node tests/ssr.mjs",
+    "test:bundle": "node tests/bundle.mjs",
     "test:package": "node tests/package-consumer.mjs",
     "test:package:clean": "node tests/package-clean.mjs"
   },
