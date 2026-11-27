@@ -108,6 +108,22 @@ Before making changes:
 - Run the checks relevant to the change.
 - Summarize what changed, what was tested, and any remaining limitations.
 
+### Pull request readiness (mandatory gate)
+
+Before opening any pull request, including a draft PR, the agent MUST verify that every acceptance criterion of each issue the PR is intended to resolve has been satisfied. Passing tests alone does not establish issue completion.
+
+1. Fetch the latest linked issue body, acceptance criteria, task checklist, and relevant comments or approved scope decisions.
+2. Inspect the complete proposed PR diff against the intended base branch. Map every acceptance criterion to concrete implementation and verification evidence.
+3. Run all relevant available tests, builds, lint, type checks, and required manual or integration checks. Verify the final proposed changes, not an earlier revision.
+4. Confirm that no required implementation, documentation, test, or verification remains incomplete. Treat unchecked, failed, blocked, or unverified requirements as incomplete until evidence establishes completion.
+5. Only after all applicable acceptance criteria are verified, open the PR using the repository PR template. Reference the issue and include a criterion-by-criterion checklist with supporting evidence (tests, commands, results, or relevant files).
+
+**If any acceptance criterion is incomplete or cannot be verified, do not open a PR (including a draft PR).** Continue the work where possible; otherwise report the blocker and remaining criteria to the maintainer. Do not silently omit, weaken, defer, or mark a criterion complete without evidence. Any scope change or exception requires explicit maintainer approval before opening the PR.
+
+For a release-work PR, evaluate the criteria of its assigned issue, not unrelated sibling issues or the entire release. For a release PR, verify the parent release issue, all required child tasks, and the applicable pre-release acceptance criteria. Actions that necessarily occur after merge (such as authorized tagging or publication) must be explicitly identified as post-merge steps, never reported as already completed.
+
+Use closing references only when the PR actually resolves the linked issue. Recheck the criteria if requirements or the PR diff change after opening.
+
 ## Branch strategy
 
 Svelix uses release-oriented development. Apart from the default branch, there are two branch categories: release branches and release-work branches.
@@ -143,10 +159,10 @@ v0.1.1/security_dependency-update
 
 1. Create the release branch from the current `main` for the intended release version.
 2. Create each release-work branch from its corresponding release branch, using the latest integrated changes.
-3. Commit focused changes using Conventional Commits 1.0.0.
-4. Open a pull request from the work branch into the corresponding release branch. Reference the issue and include validation results.
+3. Commit changes according to the [commit policy](#commit-policy): atomic change boundaries and Conventional Commits 1.0.0 messages are both required.
+4. Satisfy the [pull request readiness gate](#pull-request-readiness-mandatory-gate) before opening a pull request from the work branch into the corresponding release branch. Reference the issue and include validation evidence.
 5. Merge the work PR only after relevant review and checks. Delete completed work branches after merging when appropriate.
-6. Once the release scope and acceptance criteria are satisfied, open a release PR from the release branch into `main`.
+6. Once the release scope and acceptance criteria are satisfied and the pull request readiness gate has passed, open a release PR from the release branch into `main`.
 7. After the release PR is approved and merged, create the matching release tag on the intended commit in `main`, subject to the release authorization rules below.
 
 ### Safety and maintenance
@@ -203,11 +219,27 @@ Do not use pre-release tags as stable releases.
 
 Specification: https://semver.org/spec/v2.0.0.html
 
-## Commit messages
+## Commit policy
 
-All commit messages MUST follow **Conventional Commits 1.0.0**.
+**Every commit MUST satisfy both requirements below. They are complementary, not alternatives.**
 
-Format:
+- **Atomic Commit** defines WHAT belongs in a commit: one coherent logical change.
+- **Conventional Commits 1.0.0** defines HOW that change is described in its commit message.
+
+First determine the atomic change boundary, then write its Conventional Commits message. A correctly formatted message does not excuse unrelated changes, and an atomic change does not excuse an invalid message.
+
+### 1. Change boundaries (Atomic Commit)
+
+One commit, one purpose.
+
+- Separate independent features, components, bug fixes, refactoring, formatting, and maintenance changes.
+- Keep implementation, necessary types, directly related tests, documentation, and required dependency or lockfile changes together when they form one coherent change.
+- Do not split by file count, line count, or individual implementation steps.
+- Do not combine unrelated changes merely because they belong to the same issue or PR.
+- Keep each commit independently understandable, reviewable, and reversible whenever practical. Make dependencies between commits explicit.
+- Prefer a buildable state with relevant passing tests at every commit. Do not knowingly leave broken intermediate commits in the final PR history. Document unavoidable exceptions and unavailable checks.
+
+### 2. Message format (Conventional Commits 1.0.0)
 
 ```text
 <type>[optional scope][!]: <description>
@@ -217,33 +249,64 @@ Format:
 [optional footer(s)]
 ```
 
-Rules:
-- Use a valid type such as `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, or `revert`.
-- Use a scope when it adds useful context, for example `feat(button): add disabled state`.
-- Separate type/scope from description with exactly `: `.
-- Write the description in the imperative mood, concise, and without a trailing period.
-- Use the body to explain motivation and relevant implementation details, not repeat the diff.
-- Use footers for issue references and metadata.
-- Mark breaking changes with `!` before the colon and/or a `BREAKING CHANGE: ` footer.
-- Reference issues using a footer such as `Closes #123` when the commit actually closes that issue.
-- Do not invent new commit types or add non-standard prefixes.
+- Use a project-supported type: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, or `revert`.
+- Select the type based on the primary purpose of the atomic change, not the kinds of files changed. A feature with its own tests and documentation is still a `feat` commit.
+- Use a scope when it identifies the affected area, for example `feat(button): add disabled state`.
+- Separate the type/scope from the description with exactly `: `.
+- Write a concise imperative description without a trailing period. Use the optional body to explain motivation and meaningful implementation details.
+- Mark breaking changes with `!` before the colon and/or a `BREAKING CHANGE: ` footer. Describe the incompatible change and migration where appropriate.
+- Use issue-reference footers such as `Refs #123` for partial work and `Closes #123` only when the change actually resolves the issue.
+- Do not invent commit types or use vague or work-in-progress messages.
 
-Examples:
+Specification: https://www.conventionalcommits.org/en/v1.0.0/
+
+### 3. Required commit workflow
+
+Repeat these steps for every logical change:
+
+1. Inspect the working tree and staged diff.
+2. Identify one coherent purpose and separate unrelated changes.
+3. Stage only the changes needed for that purpose, including directly related tests and documentation. Use selective staging when necessary; never stage unrelated user changes.
+4. Run relevant available checks against the intended commit state. Report any checks that cannot run; never claim unverified checks passed.
+5. Review the staged diff for unrelated changes, secrets, and unintended generated artifacts.
+6. Select the Conventional Commits type and scope, then write the message describing that single purpose.
+7. Create the commit and repeat for any remaining logical changes.
+
+Both the change boundary and message format must pass review before committing. Do not create empty commits or use a single commit for an entire issue merely for convenience.
+
+### 4. Examples
+
+An issue covering Button and Input may contain these separate atomic commits:
 
 ```text
-feat(button): add loading state
-fix(dialog): restore focus after close
-docs: document accessibility requirements
-refactor(compiler): isolate static layout transform
-perf(core): reduce component entrypoint size
-test(input): cover invalid value handling
-chore: update development dependencies
+feat(button): implement native button component
+feat(input): implement native input component
+fix(button): preserve native form submission
+test(forms): cover shared form behavior
+docs(forms): document component usage
+```
+
+Each implementation commit may include its own necessary types, tests, and documentation. Separate test or documentation commits are appropriate only when they represent independent logical work.
+
+Avoid these patterns:
+
+- `feat: implement all basic UI components` when the components are independent: valid message format, but not an atomic change.
+- `add button`: potentially atomic, but not a valid Conventional Commits message.
+- Separate commits for creating a component file, adding its script, and adding its markup when those steps have no independent value.
+
+Breaking change example:
+
+```text
 feat!: replace legacy theme API
 
 BREAKING CHANGE: remove the deprecated theme configuration
 ```
 
-Conventional Commits specification: https://www.conventionalcommits.org/en/v1.0.0/
+### 5. Pull request integration
+
+Prefer merge commits to preserve meaningful atomic development commits and PR boundaries. Squash merge is acceptable only when the resulting commit represents one coherent logical change. Integration merge commits may combine multiple existing atomic commits without changing their boundaries; their single purpose is branch integration. Use a Conventional Commits-compliant message for merge and squash commits, including release PRs (for example, `chore(release): integrate v0.1.0`).
+
+Do not rewrite shared history or force-push shared branches to clean up commits. Follow the branch strategy and maintainer authorization rules.
 
 ## Communication
 
