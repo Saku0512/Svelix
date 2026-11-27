@@ -16,6 +16,8 @@ const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const fixtureRoot = join(root, 'tests/components');
 const output = mkdtempSync(join(tmpdir(), 'svelix-components-output-'));
 const profile = mkdtempSync(join(tmpdir(), 'svelix-components-chrome-'));
+const SOCKET_OPEN_MS = 10000;
+const CDP_TIMEOUT_MS = 10000;
 const mime = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
@@ -34,6 +36,22 @@ function findChrome() {
   throw new Error('Chrome or Chromium was not found. Set CHROME_PATH to a browser binary.');
 }
 
+function killBrowser(proc) {
+  if (!proc?.pid) return;
+  try {
+    if (process.platform === 'win32') {
+      execFileSync('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
+      return;
+    }
+    try {
+      process.kill(-proc.pid, 'SIGKILL');
+    } catch {
+      process.kill(proc.pid, 'SIGKILL');
+    }
+  } catch {
+    // already exited
+  }
+}
 
 let chromeLog = '';
 const pending = new Map();
@@ -42,6 +60,13 @@ let chrome;
 let socket;
 let messageId = 0;
 
+function rejectPending(error) {
+  for (const entry of pending.values()) {
+    clearTimeout(entry.timer);
+    entry.reject(error);
+  }
+  pending.clear();
+}
 
 try {
   await build({
@@ -81,12 +106,22 @@ try {
     `--user-data-dir=${profile}`,
     '--remote-debugging-port=0',
     'about:blank'
-  ], { detached: true, stdio: ['ignore', 'ignore', 'pipe'] });
+  ], { detached: process.platform !== 'win32', stdio: ['ignore', 'ignore', 'pipe'] });
   chrome.stderr.on('data', (chunk) => { chromeLog += chunk; });
+  let chromeLaunchError;
+  chrome.on('error', (error) => {
+    chromeLaunchError = error;
+  });
 
   let debugPort = '';
   const started = Date.now();
   while (!debugPort) {
+    if (chromeLaunchError) {
+      throw new Error(`Could not start Chrome (${executable}): ${chromeLaunchError.message}`);
+    }
+    if (chrome.exitCode !== null) {
+      throw new Error(`Chrome exited before opening a debugging port.\n${chromeLog}`);
+    }
     if (Date.now() - started > 15000) throw new Error(`Chrome did not open a debugging port.\n${chromeLog}`);
     try {
       debugPort = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0];
@@ -103,20 +138,49 @@ try {
   socket.addEventListener('message', (event) => {
     const message = JSON.parse(event.data);
     if (message.id && pending.has(message.id)) {
-      pending.get(message.id)(message);
+      const entry = pending.get(message.id);
       pending.delete(message.id);
+      clearTimeout(entry.timer);
+      entry.resolve(message);
     }
   });
+  socket.addEventListener('close', () => {
+    rejectPending(new Error('Chrome DevTools socket closed'));
+  });
+  socket.addEventListener('error', () => {
+    rejectPending(new Error('Chrome DevTools socket error'));
+  });
   await new Promise((resolveOpen, rejectOpen) => {
-    socket.addEventListener('open', resolveOpen);
-    socket.addEventListener('error', () => rejectOpen(new Error('Chrome DevTools connection failed')));
+    const timer = setTimeout(() => {
+      rejectOpen(new Error(`Chrome DevTools connection timed out after ${SOCKET_OPEN_MS}ms`));
+    }, SOCKET_OPEN_MS);
+    socket.addEventListener('open', () => {
+      clearTimeout(timer);
+      resolveOpen();
+    }, { once: true });
+    socket.addEventListener('error', () => {
+      clearTimeout(timer);
+      rejectOpen(new Error('Chrome DevTools connection failed'));
+    }, { once: true });
   });
 
   const send = (method, params = {}) => new Promise((resolveSend, rejectSend) => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      rejectSend(new Error(`Chrome DevTools socket is not open for ${method}`));
+      return;
+    }
     const id = ++messageId;
-    pending.set(id, (message) => {
-      if (message.error) rejectSend(new Error(`${method}: ${message.error.message}`));
-      else resolveSend(message.result);
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      rejectSend(new Error(`${method} timed out after ${CDP_TIMEOUT_MS}ms`));
+    }, CDP_TIMEOUT_MS);
+    pending.set(id, {
+      timer,
+      resolve: (message) => {
+        if (message.error) rejectSend(new Error(`${method}: ${message.error.message}`));
+        else resolveSend(message.result);
+      },
+      reject: rejectSend
     });
     socket.send(JSON.stringify({ id, method, params }));
   });
@@ -389,11 +453,10 @@ try {
 
   console.log(`Component fixture passed in ${executable}.`);
 } finally {
+  rejectPending(new Error('Component fixture is shutting down'));
   server?.close();
   if (socket) socket.close();
-  if (chrome?.pid) {
-    try { process.kill(-chrome.pid, 'SIGKILL'); } catch { /* already exited */ }
-  }
+  killBrowser(chrome);
   rmSync(profile, { recursive: true, force: true });
   rmSync(output, { recursive: true, force: true });
 }
