@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 const STABLE_SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const BOOTSTRAP_PLACEHOLDER = '0.0.0-stage';
 const GIT_SHA = /^[0-9a-f]{40}$/;
+const PACKUMENT_ACCEPT = 'application/vnd.npm.install-v1+json';
 
 export const parseStableVersion = (version) => {
   const match = STABLE_SEMVER.exec(version);
@@ -20,6 +21,118 @@ export const compareStableVersions = (left, right) => {
     if (leftParts[index] > rightParts[index]) return 1;
   }
   return 0;
+};
+
+export const inspectRegistryPackument = ({ packument, packageName, candidateVersion }) => {
+  if (!packument || typeof packument !== 'object' || Array.isArray(packument)) {
+    throw new Error('Expected the npm registry to return a package object');
+  }
+  if (packument.name !== packageName) {
+    throw new Error(
+      `Expected npm package name ${packageName}, received ${packument.name ?? 'missing name'}`
+    );
+  }
+
+  const versions = packument.versions;
+  if (!versions || typeof versions !== 'object' || Array.isArray(versions)) {
+    throw new Error(`npm packument for ${packageName} is missing its versions object`);
+  }
+
+  const distTags = packument['dist-tags'] ?? {};
+  if (typeof distTags !== 'object' || Array.isArray(distTags)) {
+    throw new Error(`npm packument for ${packageName} has invalid dist-tags`);
+  }
+
+  const latestVersion = Object.hasOwn(distTags, 'latest') ? distTags.latest : null;
+  if (latestVersion !== null && (typeof latestVersion !== 'string' || latestVersion.length === 0)) {
+    throw new Error(`npm packument for ${packageName} has an invalid latest dist-tag`);
+  }
+  if (latestVersion !== null && !Object.hasOwn(versions, latestVersion)) {
+    throw new Error(
+      `npm latest for ${packageName} points to missing version ${latestVersion}`
+    );
+  }
+
+  const candidatePublished = Object.hasOwn(versions, candidateVersion);
+  let candidateIntegrity = null;
+  if (candidatePublished) {
+    candidateIntegrity = versions[candidateVersion]?.dist?.integrity;
+    if (typeof candidateIntegrity !== 'string' || candidateIntegrity.length === 0) {
+      throw new Error(
+        `Published npm candidate ${packageName}@${candidateVersion} is missing dist.integrity`
+      );
+    }
+  }
+
+  return {
+    packageState: 'present',
+    latestVersion,
+    candidatePublished,
+    candidateIntegrity
+  };
+};
+
+export const lookupRegistryPackage = async ({
+  packageName,
+  candidateVersion,
+  registryUrl = 'https://registry.npmjs.org/',
+  fetchImpl = fetch
+}) => {
+  parseStableVersion(candidateVersion);
+
+  const registry = new URL(registryUrl);
+  if (registry.protocol !== 'https:') {
+    throw new Error(`Expected an HTTPS npm registry URL, received ${registryUrl}`);
+  }
+  if (!registry.pathname.endsWith('/')) registry.pathname += '/';
+  const packageUrl = new URL(encodeURIComponent(packageName), registry);
+
+  let response;
+  try {
+    response = await fetchImpl(packageUrl, {
+      headers: {
+        accept: PACKUMENT_ACCEPT,
+        'user-agent': 'svelix-release-policy'
+      },
+      signal: AbortSignal.timeout(10_000)
+    });
+  } catch (error) {
+    throw new Error(
+      `npm registry transport failure for ${packageName}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  if (response.status === 404) {
+    return {
+      packageState: 'absent',
+      latestVersion: null,
+      candidatePublished: false,
+      candidateIntegrity: null
+    };
+  }
+  if (!response.ok) {
+    throw new Error(`npm registry lookup for ${packageName} failed with HTTP ${response.status}`);
+  }
+
+  let body;
+  try {
+    body = await response.text();
+  } catch (error) {
+    throw new Error(
+      `npm registry response failure for ${packageName}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+  if (body.trim().length === 0) {
+    throw new Error(`npm registry returned an empty packument for ${packageName}`);
+  }
+
+  let packument;
+  try {
+    packument = JSON.parse(body);
+  } catch {
+    throw new Error(`npm registry returned invalid JSON for ${packageName}`);
+  }
+  return inspectRegistryPackument({ packument, packageName, candidateVersion });
 };
 
 export const inspectCandidateStage = ({
@@ -167,8 +280,24 @@ export const planProvenance = ({ publicationPlan, sourceSha, workflowSha }) => {
   );
 };
 
-const runCli = () => {
+const runCli = async () => {
   const [command, ...args] = process.argv.slice(2);
+
+  if (command === 'registry-state') {
+    const [packageName, candidateVersion, registryUrl] = args;
+    if (!packageName || !candidateVersion) {
+      throw new Error(
+        'Usage: node scripts/release-policy.mjs registry-state <package> <candidate> [registry-url]'
+      );
+    }
+    const result = await lookupRegistryPackage({
+      packageName,
+      candidateVersion,
+      registryUrl
+    });
+    process.stdout.write(JSON.stringify(result));
+    return;
+  }
 
   if (command === 'stage-state') {
     const [stageFile, packageName, candidateVersion, expectedShasum] = args;
@@ -236,4 +365,4 @@ const runCli = () => {
   process.stdout.write(action);
 };
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) runCli();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await runCli();

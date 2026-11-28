@@ -15,7 +15,7 @@ The workflow enforces the repository release policy:
 - Type checks, the package build, the full test suite, the clean reproducible package check, dependency audit, and package archive review must pass before a new tag is created.
 - Existing tags are never moved. A conflicting tag stops the workflow.
 - A manual recovery run may reuse an existing matching tag contained in `main`; it rebuilds and verifies that tagged commit without moving the tag.
-- Before staging, the workflow distinguishes an absent package from npm's public `0.0.0-stage` bootstrap placeholder and queries authenticated pending-stage state. It only creates a stage when the package is genuinely absent.
+- Before staging, the workflow reads the version-independent npm registry packument and derives package existence, `latest`, and candidate integrity separately. It distinguishes an absent package from a present package with no `latest` tag and npm's public `0.0.0-stage` bootstrap placeholder, then queries authenticated pending-stage state. It only creates a stage when the package is genuinely absent.
 - A rerun recognizes one pending candidate only when its package name, version, `latest` tag, and SHA-1 digest match the verified archive. It then waits for approval without uploading again. Missing, duplicate, or conflicting stage state stops for manual inspection.
 - All release triggers share one package-level concurrency group, so manual and tag-triggered publications cannot overlap.
 - A candidate older than the current npm `latest` version is rejected before the workflow creates a tag or publishes anything.
