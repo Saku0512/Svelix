@@ -15,6 +15,10 @@ on:
         description: Type RELEASE to tag and publish the package
         required: true
         type: string
+      bootstrap_provenance_exception:
+        description: Type OMIT_PROVENANCE only for an approved immutable-tag bootstrap recovery
+        required: false
+        type: string
   push:
     tags:
       - 'v*.*.*'
@@ -398,6 +402,7 @@ jobs:
         id: npm_action
         env:
           ARCHIVE_FILENAME: ${{ needs.verify.outputs.archive_filename }}
+          BOOTSTRAP_PROVENANCE_EXCEPTION: ${{ inputs.bootstrap_provenance_exception }}
           EXISTING_STAGE_ID: ${{ steps.npm_plan.outputs.stage_id }}
           NPM_BOOTSTRAP_TOKEN: ${{ secrets.NPM_TOKEN }}
           PACKAGE_NAME: ${{ needs.prepare.outputs.package_name }}
@@ -420,6 +425,10 @@ jobs:
             if [[ "$PROVENANCE_PLAN" == "generate" ]]; then
               stage_args+=(--provenance)
             elif [[ "$PROVENANCE_PLAN" == "omit-bootstrap-recovery" ]]; then
+              if [[ "$BOOTSTRAP_PROVENANCE_EXCEPTION" != "OMIT_PROVENANCE" ]]; then
+                echo "::error::This immutable-tag bootstrap recovery requires explicit confirmation value OMIT_PROVENANCE"
+                exit 1
+              fi
               echo "::warning::Omitting provenance because the immutable package source differs from the workflow identity commit"
             else
               echo "::error::Unexpected provenance plan for staging: $PROVENANCE_PLAN"

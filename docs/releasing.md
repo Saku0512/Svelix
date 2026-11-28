@@ -34,14 +34,14 @@ The first publication needs a short-lived npm stage-only credential because trus
 1. Enable two-factor authentication on the npm maintainer account.
 2. Create a granular access token with read/write stage-only access.
 3. Store it as an Environment secret named `NPM_TOKEN` in the `npm` Environment.
-4. Run the workflow from `main` with operation `stage-first-release` and confirmation value `RELEASE`.
+4. Run the workflow from `main` with operation `stage-first-release` and confirmation value `RELEASE`. For the existing v0.1.0 immutable-tag recovery, also enter `OMIT_PROVENANCE` in the bootstrap provenance exception field.
 5. Review the staged archive on npmjs.com and approve it with two-factor authentication.
 6. Configure trusted publishing as described below, then remove the `NPM_TOKEN` secret.
 7. Rerun the workflow with operation `release` to verify npm `latest` and create the GitHub Latest Release.
 
 Do not weaken npm two-factor authentication to make automation work. The first-release staging run deliberately stops before creating a GitHub Release. See the [npm staged publishing documentation](https://docs.npmjs.com/staged-publishing/) for the approval flow.
 
-For the existing v0.1.0 recovery, `v0.1.0` identifies the package source while the manual workflow run identifies the newer automation commit. npm derives automatic provenance source identity from the workflow event, not the checked-out tag. The workflow therefore omits provenance only for this one staged bootstrap upload; it never changes GitHub identity variables or attributes the archive to the wrong commit. Future direct publications fail unless the workflow and package source commits match.
+For the existing v0.1.0 recovery, `v0.1.0` identifies the package source while the manual workflow run identifies the newer automation commit. npm derives automatic provenance source identity from the workflow event, not the checked-out tag. The workflow therefore omits provenance only for this one staged bootstrap upload; it never changes GitHub identity variables or attributes the archive to the wrong commit. The stage fails unless the maintainer explicitly authorizes this exception by entering `OMIT_PROVENANCE`. Future direct publications fail unless the workflow and package source commits match.
 
 ## Preferred npm trusted-publisher setup
 
