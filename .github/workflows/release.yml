@@ -3,9 +3,21 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Stage the first npm package or complete a release
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - stage-first-release
       confirmation:
         description: Type RELEASE to tag and publish the package
         required: true
+        type: string
+      bootstrap_provenance_exception:
+        description: Type OMIT_PROVENANCE only for an approved immutable-tag bootstrap recovery
+        required: false
         type: string
   push:
     tags:
@@ -29,6 +41,7 @@ jobs:
       tag: ${{ steps.release.outputs.tag }}
       source_sha: ${{ steps.release.outputs.source_sha }}
       notes_file: ${{ steps.release.outputs.notes_file }}
+      release_mode: ${{ steps.release.outputs.release_mode }}
     steps:
       - name: Check out release source
         uses: actions/checkout@v7
@@ -42,6 +55,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           GIT_REF: ${{ github.ref }}
           GIT_REF_NAME: ${{ github.ref_name }}
+          RELEASE_MODE: ${{ inputs.operation }}
         shell: bash
         run: |
           set -euo pipefail
@@ -69,6 +83,8 @@ jobs:
           tag="v${version}"
           notes_file="docs/releases/${tag}.md"
           source_sha="$(git rev-parse HEAD)"
+          release_mode="$RELEASE_MODE"
+          if [[ -z "$release_mode" ]]; then release_mode="release"; fi
 
           if [[ ! -f "$notes_file" ]]; then
             echo "::error::Missing release notes: $notes_file"
@@ -92,6 +108,24 @@ jobs:
             if [[ "$source_sha" != "$(git rev-parse origin/main)" ]]; then
               echo "::error::The selected revision is not the current origin/main tip"
               exit 1
+            fi
+
+            if git show-ref --verify --quiet "refs/tags/${tag}"; then
+              tag_sha="$(git rev-list -n 1 "$tag")"
+              if ! git merge-base --is-ancestor "$tag_sha" origin/main; then
+                echo "::error::Existing tag $tag does not point to a commit contained in main"
+                exit 1
+              fi
+              tag_version="$(git show "${tag}:package.json" | node -e "let input='';process.stdin.on('data',chunk=>input+=chunk);process.stdin.on('end',()=>process.stdout.write(JSON.parse(input).version))")"
+              if [[ "$tag_version" != "$version" ]]; then
+                echo "::error::Existing tag $tag contains package version $tag_version instead of $version"
+                exit 1
+              fi
+              if ! git cat-file -e "${tag}:${notes_file}"; then
+                echo "::error::Existing tag $tag does not contain $notes_file"
+                exit 1
+              fi
+              source_sha="$tag_sha"
             fi
           else
             if [[ "$GIT_REF_NAME" != "$tag" ]]; then
@@ -119,6 +153,7 @@ jobs:
             echo "tag=$tag"
             echo "source_sha=$source_sha"
             echo "notes_file=$notes_file"
+            echo "release_mode=$release_mode"
           } >> "$GITHUB_OUTPUT"
 
   verify:
@@ -129,6 +164,7 @@ jobs:
     outputs:
       archive_filename: ${{ steps.archive.outputs.archive_filename }}
       package_integrity: ${{ steps.archive.outputs.package_integrity }}
+      package_shasum: ${{ steps.archive.outputs.package_shasum }}
       package_sha256: ${{ steps.archive.outputs.package_sha256 }}
     steps:
       - name: Check out validated revision
@@ -174,6 +210,7 @@ jobs:
 
           archive_filename="$(node -e "const fs=require('fs');const data=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const entry=Array.isArray(data)?data[0]:data[Object.keys(data)[0]];process.stdout.write(entry.filename)" "$pack_json")"
           package_integrity="$(node -e "const fs=require('fs');const data=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const entry=Array.isArray(data)?data[0]:data[Object.keys(data)[0]];process.stdout.write(entry.integrity)" "$pack_json")"
+          package_shasum="$(node -e "const fs=require('fs');const data=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const entry=Array.isArray(data)?data[0]:data[Object.keys(data)[0]];process.stdout.write(entry.shasum)" "$pack_json")"
           (
             cd "$archive_dir"
             sha256sum "$archive_filename" > "$archive_filename.sha256"
@@ -183,6 +220,7 @@ jobs:
           {
             echo "archive_filename=$archive_filename"
             echo "package_integrity=$package_integrity"
+            echo "package_shasum=$package_shasum"
             echo "package_sha256=$package_sha256"
           } >> "$GITHUB_OUTPUT"
 
@@ -222,6 +260,13 @@ jobs:
           ref: ${{ needs.prepare.outputs.source_sha }}
           fetch-depth: 0
 
+      - name: Check out current release automation
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: .release-automation
+          persist-credentials: false
+
       - name: Set up Node.js 24 LTS and npm registry
         uses: actions/setup-node@v7
         with:
@@ -229,12 +274,12 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
-      - name: Verify npm trusted-publishing support
+      - name: Verify npm release-command support
         shell: bash
         run: |
           set -euo pipefail
           npm_version="$(npm --version)"
-          node -e "const [major, minor] = process.argv[1].split('.').map(Number); if (major < 11 || (major === 11 && minor < 5)) { console.error('npm 11.5.1 or newer is required for trusted publishing'); process.exit(1); }" "$npm_version"
+          node -e "const [major, minor] = process.argv[1].split('.').map(Number); if (major < 11 || (major === 11 && minor < 15)) { console.error('npm 11.15.0 or newer is required for staged and trusted publishing'); process.exit(1); }" "$npm_version"
 
       - name: Download verified release archive
         uses: actions/download-artifact@v8
@@ -246,6 +291,7 @@ jobs:
         env:
           ARCHIVE_FILENAME: ${{ needs.verify.outputs.archive_filename }}
           EXPECTED_INTEGRITY: ${{ needs.verify.outputs.package_integrity }}
+          EXPECTED_SHASUM: ${{ needs.verify.outputs.package_shasum }}
           EXPECTED_SHA256: ${{ needs.verify.outputs.package_sha256 }}
         shell: bash
         run: |
@@ -258,9 +304,14 @@ jobs:
             cd "$archive_dir"
             sha256sum --check "$ARCHIVE_FILENAME.sha256"
           )
+          actual_shasum="$(sha1sum "$tarball" | cut -d ' ' -f 1)"
           actual_sha256="$(sha256sum "$tarball" | cut -d ' ' -f 1)"
           actual_integrity="$(node -e "const fs=require('fs');const data=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const entry=Array.isArray(data)?data[0]:data[Object.keys(data)[0]];process.stdout.write(entry.integrity)" "$metadata")"
 
+          if [[ "$actual_shasum" != "$EXPECTED_SHASUM" ]]; then
+            echo "::error::Transferred package SHA-1 does not match the verified archive"
+            exit 1
+          fi
           if [[ "$actual_sha256" != "$EXPECTED_SHA256" ]]; then
             echo "::error::Transferred package SHA-256 does not match the verified archive"
             exit 1
@@ -274,60 +325,54 @@ jobs:
         id: npm_plan
         env:
           LOCAL_INTEGRITY: ${{ needs.verify.outputs.package_integrity }}
+          LOCAL_SHASUM: ${{ needs.verify.outputs.package_shasum }}
+          NPM_BOOTSTRAP_TOKEN: ${{ secrets.NPM_TOKEN }}
           PACKAGE_NAME: ${{ needs.prepare.outputs.package_name }}
           PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
+          PACKAGE_SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          PROVENANCE_IDENTITY_SHA: ${{ github.sha }}
+          RELEASE_MODE: ${{ needs.prepare.outputs.release_mode }}
         shell: bash
         run: |
           set -euo pipefail
 
-          latest_error_file="$RUNNER_TEMP/npm-latest-error.log"
-          set +e
-          latest_json="$(npm view "${PACKAGE_NAME}@latest" version --json 2> "$latest_error_file")"
-          latest_status=$?
-          set -e
-          if [[ $latest_status -eq 0 ]]; then
-            latest_version="$(node -e "process.stdout.write(JSON.parse(process.argv[1]))" "$latest_json")"
-          else
-            latest_error="$(<"$latest_error_file")"
-            if [[ "$latest_error" == *"E404"* || "$latest_json" == *"E404"* ]]; then
-              latest_version=""
-            else
-              printf '%s\n%s\n' "$latest_error" "$latest_json" >&2
-              exit "$latest_status"
-            fi
+          registry_state="$(node .release-automation/scripts/release-policy.mjs registry-state "$PACKAGE_NAME" "$PACKAGE_VERSION")"
+          package_state="$(node -e "process.stdout.write(JSON.parse(process.argv[1]).packageState)" "$registry_state")"
+          latest_version="$(node -e "const value=JSON.parse(process.argv[1]).latestVersion;if(value!==null)process.stdout.write(value)" "$registry_state")"
+          publication_state="$(node -e "process.stdout.write(JSON.parse(process.argv[1]).candidatePublished?'published':'unpublished')" "$registry_state")"
+          candidate_integrity="$(node -e "const value=JSON.parse(process.argv[1]).candidateIntegrity;if(value!==null)process.stdout.write(value)" "$registry_state")"
+          integrity_state="mismatch"
+          if [[ "$publication_state" == "published" && "$candidate_integrity" == "$LOCAL_INTEGRITY" ]]; then
+            integrity_state="match"
           fi
 
-          candidate_error_file="$RUNNER_TEMP/npm-candidate-error.log"
-          set +e
-          candidate_json="$(npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" dist.integrity --json 2> "$candidate_error_file")"
-          candidate_status=$?
-          set -e
-          if [[ $candidate_status -eq 0 ]]; then
-            candidate_integrity="$(node -e "process.stdout.write(JSON.parse(process.argv[1]))" "$candidate_json")"
-            publication_state="published"
-            if [[ "$candidate_integrity" == "$LOCAL_INTEGRITY" ]]; then
-              integrity_state="match"
-            else
-              integrity_state="mismatch"
+          candidate_stage="none"
+          stage_id=""
+          if [[ "$RELEASE_MODE" == "stage-first-release" ]]; then
+            if [[ -z "$NPM_BOOTSTRAP_TOKEN" ]]; then
+              echo "::error::stage-first-release requires the npm Environment secret NPM_TOKEN"
+              exit 1
             fi
-          else
-            candidate_error="$(<"$candidate_error_file")"
-            if [[ "$candidate_error" == *"E404"* || "$candidate_json" == *"E404"* ]]; then
-              publication_state="unpublished"
-              integrity_state="mismatch"
-            else
-              printf '%s\n%s\n' "$candidate_error" "$candidate_json" >&2
-              exit "$candidate_status"
-            fi
+
+            stage_file="$RUNNER_TEMP/npm-stage-list.json"
+            NODE_AUTH_TOKEN="$NPM_BOOTSTRAP_TOKEN" npm stage list "$PACKAGE_NAME" --json > "$stage_file"
+            stage_result="$(node .release-automation/scripts/release-policy.mjs stage-state "$stage_file" "$PACKAGE_NAME" "$PACKAGE_VERSION" "$LOCAL_SHASUM")"
+            candidate_stage="$(node -e "process.stdout.write(JSON.parse(process.argv[1]).state)" "$stage_result")"
+            stage_id="$(node -e "process.stdout.write(JSON.parse(process.argv[1]).stageId)" "$stage_result")"
           fi
 
           latest_argument="$latest_version"
           if [[ -z "$latest_argument" ]]; then latest_argument="-"; fi
-          plan="$(node scripts/release-policy.mjs plan "$PACKAGE_VERSION" "$latest_argument" "$publication_state" "$integrity_state")"
+          plan="$(node .release-automation/scripts/release-policy.mjs plan "$PACKAGE_VERSION" "$latest_argument" "$package_state" "$publication_state" "$integrity_state" "$candidate_stage" "$RELEASE_MODE")"
+          provenance="$(node .release-automation/scripts/release-policy.mjs provenance "$plan" "$PACKAGE_SOURCE_SHA" "$PROVENANCE_IDENTITY_SHA")"
 
           {
+            echo "candidate_stage=$candidate_stage"
             echo "latest_version=$latest_version"
+            echo "package_state=$package_state"
             echo "plan=$plan"
+            echo "provenance=$provenance"
+            echo "stage_id=$stage_id"
           } >> "$GITHUB_OUTPUT"
 
       - name: Create or verify immutable release tag
@@ -353,35 +398,86 @@ jobs:
             git push origin "refs/tags/${RELEASE_TAG}"
           fi
 
-      - name: Publish package with provenance and latest tag
+      - name: Stage, publish, or resume package
+        id: npm_action
         env:
           ARCHIVE_FILENAME: ${{ needs.verify.outputs.archive_filename }}
+          BOOTSTRAP_PROVENANCE_EXCEPTION: ${{ inputs.bootstrap_provenance_exception }}
+          EXISTING_STAGE_ID: ${{ steps.npm_plan.outputs.stage_id }}
           NPM_BOOTSTRAP_TOKEN: ${{ secrets.NPM_TOKEN }}
           PACKAGE_NAME: ${{ needs.prepare.outputs.package_name }}
           PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
           PUBLICATION_PLAN: ${{ steps.npm_plan.outputs.plan }}
+          PROVENANCE_PLAN: ${{ steps.npm_plan.outputs.provenance }}
         shell: bash
         run: |
           set -euo pipefail
 
           tarball="$RUNNER_TEMP/release-package/$ARCHIVE_FILENAME"
-          if [[ "$PUBLICATION_PLAN" == "publish" ]]; then
+          stage_id=""
+          if [[ "$PUBLICATION_PLAN" == "stage" ]]; then
+            if [[ -z "$NPM_BOOTSTRAP_TOKEN" ]]; then
+              echo "::error::stage-first-release requires the npm Environment secret NPM_TOKEN"
+              exit 1
+            fi
+
+            stage_args=(stage publish "$tarball" --access public --tag latest --json)
+            if [[ "$PROVENANCE_PLAN" == "generate" ]]; then
+              stage_args+=(--provenance)
+            elif [[ "$PROVENANCE_PLAN" == "omit-bootstrap-recovery" ]]; then
+              if [[ "$BOOTSTRAP_PROVENANCE_EXCEPTION" != "OMIT_PROVENANCE" ]]; then
+                echo "::error::This immutable-tag bootstrap recovery requires explicit confirmation value OMIT_PROVENANCE"
+                exit 1
+              fi
+              echo "::warning::Omitting provenance because the immutable package source differs from the workflow identity commit"
+            else
+              echo "::error::Unexpected provenance plan for staging: $PROVENANCE_PLAN"
+              exit 1
+            fi
+
+            stage_json="$(NODE_AUTH_TOKEN="$NPM_BOOTSTRAP_TOKEN" npm "${stage_args[@]}")"
+            printf '%s\n' "$stage_json"
+            stage_id="$(node -e "const data=JSON.parse(process.argv[1]);const entry=data.stageId?data:data[Object.keys(data)[0]];process.stdout.write(entry?.stageId??'')" "$stage_json")"
+            if [[ -z "$stage_id" ]]; then
+              echo "::error::npm stage publish did not return a stage ID"
+              exit 1
+            fi
+          elif [[ "$PUBLICATION_PLAN" == "await-approval" ]]; then
+            if [[ -z "$EXISTING_STAGE_ID" ]]; then
+              echo "::error::A matching pending stage must include its stage ID"
+              exit 1
+            fi
+            stage_id="$EXISTING_STAGE_ID"
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already staged as $stage_id; waiting for maintainer approval."
+          elif [[ "$PUBLICATION_PLAN" == "publish" ]]; then
+            if [[ "$PROVENANCE_PLAN" != "generate" ]]; then
+              echo "::error::Direct publication requires provenance tied to the package source commit"
+              exit 1
+            fi
             if [[ -n "$NPM_BOOTSTRAP_TOKEN" ]]; then
               NODE_AUTH_TOKEN="$NPM_BOOTSTRAP_TOKEN" npm publish "$tarball" --access public --tag latest --provenance
             else
               npm publish "$tarball" --access public --tag latest --provenance
             fi
-          else
+          elif [[ "$PUBLICATION_PLAN" == "resume" ]]; then
             echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already published, verified, and latest; resuming release."
-          fi
-
-          latest_version="$(npm view "${PACKAGE_NAME}@latest" version)"
-          if [[ "$latest_version" != "$PACKAGE_VERSION" ]]; then
-            echo "::error::npm latest points to $latest_version instead of $PACKAGE_VERSION"
+          else
+            echo "::error::Unknown publication plan: $PUBLICATION_PLAN"
             exit 1
           fi
 
+          if [[ "$PUBLICATION_PLAN" == "publish" || "$PUBLICATION_PLAN" == "resume" ]]; then
+            latest_version="$(npm view "${PACKAGE_NAME}@latest" version)"
+            if [[ "$latest_version" != "$PACKAGE_VERSION" ]]; then
+              echo "::error::npm latest points to $latest_version instead of $PACKAGE_VERSION"
+              exit 1
+            fi
+          fi
+
+          echo "stage_id=$stage_id" >> "$GITHUB_OUTPUT"
+
       - name: Create or update the latest GitHub Release
+        if: steps.npm_plan.outputs.plan == 'publish' || steps.npm_plan.outputs.plan == 'resume'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_NOTES_FILE: ${{ needs.prepare.outputs.notes_file }}
@@ -413,6 +509,7 @@ jobs:
           fi
 
       - name: Record release result
+        if: steps.npm_plan.outputs.plan == 'publish' || steps.npm_plan.outputs.plan == 'resume'
         env:
           PACKAGE_NAME: ${{ needs.prepare.outputs.package_name }}
           PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
@@ -423,4 +520,27 @@ jobs:
             echo
             echo "- npm: https://www.npmjs.com/package/$PACKAGE_NAME/v/$PACKAGE_VERSION"
             echo "- GitHub: https://github.com/${{ github.repository }}/releases/tag/$RELEASE_TAG"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record staged first release
+        if: steps.npm_plan.outputs.plan == 'stage' || steps.npm_plan.outputs.plan == 'await-approval'
+        env:
+          PACKAGE_SHASUM: ${{ needs.verify.outputs.package_shasum }}
+          PACKAGE_NAME: ${{ needs.prepare.outputs.package_name }}
+          PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
+          PROVENANCE_PLAN: ${{ steps.npm_plan.outputs.provenance }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          STAGE_ID: ${{ steps.npm_action.outputs.stage_id }}
+        run: |
+          {
+            echo "## Staged $PACKAGE_NAME@$PACKAGE_VERSION"
+            echo
+            echo "- Stage ID: \`$STAGE_ID\`"
+            echo "- Package SHA-1: \`$PACKAGE_SHASUM\`"
+            if [[ "$PROVENANCE_PLAN" == "omit-bootstrap-recovery" ]]; then
+              echo "- Provenance: omitted for this bootstrap recovery because the immutable tag source differs from the workflow identity commit."
+            fi
+            echo "- Review and approve the staged package with 2FA on npmjs.com."
+            echo "- After approval, configure trusted publishing and remove NPM_TOKEN."
+            echo "- Rerun this workflow from main with operation release to create the GitHub Release for $RELEASE_TAG."
           } >> "$GITHUB_STEP_SUMMARY"
